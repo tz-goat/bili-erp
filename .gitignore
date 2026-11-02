@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+
+# 环境变量：含真实登录态，禁止提交
+.env
+.env.local
+.env.*.local
+
+# 构建产物
+dist/
+build/
+
+# 日志
+*.log
+pnpm-debug.log*
+npm-debug.log*
+
+# 本地数据库：属于运行时数据，不进版本库
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# 编辑器与系统
+.DS_Store
+
+# Agent skill 安装产物：只跟踪 skills-lock.json 这一份清单
+.trae/

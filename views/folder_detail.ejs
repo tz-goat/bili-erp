@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f8; color: #1f2329; }
+        .page { max-width: 1440px; margin: 0 auto; padding: 32px 24px 48px; }
+        .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+        .back-link { color: #175cd3; text-decoration: none; font-size: 14px; }
+        .back-link:hover { text-decoration: underline; }
+        .title { margin: 8px 0 0; font-size: 28px; line-height: 1.2; }
+        .subtitle { margin: 8px 0 0; color: #5c6470; font-size: 14px; }
+        .error { margin-bottom: 20px; padding: 12px 14px; border: 1px solid #f0c2c2; background: #fff1f0; color: #b42318; }
+        .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .card { padding: 16px; border: 1px solid #d9dde3; background: #fff; }
+        .card-label { color: #5c6470; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .card-value { margin-top: 8px; font-size: 20px; font-weight: 600; word-break: break-all; }
+        .search-bar { display: flex; gap: 12px; align-items: flex-end; padding: 16px; margin-bottom: 16px; border: 1px solid #d9dde3; background: #fff; }
+        .search-field { display: flex; flex-direction: column; gap: 8px; min-width: 180px; }
+        .search-field.grow { flex: 1; }
+        .search-label { color: #475467; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+        .search-input, .search-select { width: 100%; padding: 10px 12px; border: 1px solid #d0d5dd; background: #fff; color: #1f2329; font: inherit; }
+        .search-actions { display: flex; gap: 10px; }
+        .search-button, .search-reset { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 1px solid #d0d5dd; background: #fff; color: #344054; text-decoration: none; font: inherit; cursor: pointer; }
+        .search-button { border-color: #175cd3; background: #175cd3; color: #fff; }
+        .table-wrap { border: 1px solid #d9dde3; background: #fff; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 1440px; }
+        th, td { padding: 12px 14px; border-bottom: 1px solid #ebeef2; text-align: left; font-size: 14px; vertical-align: top; }
+        th { background: #f8fafc; color: #475467; font-weight: 600; }
+        tr:last-child td { border-bottom: none; }
+        .muted { color: #667085; }
+        .video-link { color: #175cd3; text-decoration: none; font-weight: 500; }
+        .video-link:hover { text-decoration: underline; }
+        /* 简介列固定宽度并截断两行，避免长文本把整行高度撑开破坏表格扫读 */
+        .intro-cell { max-width: 320px; display: -webkit-box; line-clamp: 2; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #667085; }
+        .pagination { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 16px; }
+        .pager-links { display: flex; gap: 10px; }
+        .pager-link { padding: 8px 12px; border: 1px solid #d0d5dd; background: #fff; color: #344054; text-decoration: none; }
+        .pager-link.disabled { color: #98a2b3; pointer-events: none; }
+        .empty { padding: 32px 16px; text-align: center; color: #667085; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="topbar">
+            <div>
+                <a class="back-link" href="/?mid=<%= mid %>">返回收藏夹列表</a>
+                <h1 class="title"><%= title %></h1>
+                <p class="subtitle">纯文字表格视图，当前展示第 <strong><%= currentPage %></strong> 页。</p>
+            </div>
+        </div>
+
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="error">接口请求失败：<%= error %></div>
+        <% } %>
+
+        <div class="meta">
+            <div class="card">
+                <div class="card-label">收藏夹 ID</div>
+                <div class="card-value"><%= folderInfo?.id || mediaId %></div>
+            </div>
+            <div class="card">
+                <div class="card-label">原始 FID</div>
+                <div class="card-value"><%= folderInfo?.fid || '-' %></div>
+            </div>
+            <div class="card">
+                <div class="card-label">视频总数</div>
+                <div class="card-value"><%= folderInfo?.media_count || videos.length %></div>
+            </div>
+            <div class="card">
+                <div class="card-label">当前页 / 总页数</div>
+                <div class="card-value"><%= currentPage %> / <%= totalPages %></div>
+            </div>
+        </div>
+
+        <form class="search-bar" method="get" action="/folders/<%= mediaId %>">
+            <input type="hidden" name="mid" value="<%= mid %>">
+            <div class="search-field grow">
+                <label class="search-label" for="keyword">关键字</label>
+                <input id="keyword" class="search-input" type="search" name="keyword" value="<%= keyword || '' %>" placeholder="输入标题、简介等关键字">
+            </div>
+            <div class="search-field">
+                <label class="search-label" for="type">搜索范围</label>
+                <select id="type" class="search-select" name="type">
+                    <option value="0" <%= searchType === 0 ? 'selected' : '' %>>当前收藏夹</option>
+                    <option value="1" <%= searchType === 1 ? 'selected' : '' %>>全局搜索</option>
+                </select>
+            </div>
+            <div class="search-actions">
+                <button class="search-button" type="submit">搜索</button>
+                <a class="search-reset" href="/folders/<%= mediaId %>?mid=<%= mid %>">重置</a>
+            </div>
+        </form>
+
+        <div class="table-wrap">
+            <% if (!videos.length) { %>
+                <div class="empty"><%= keyword ? '当前搜索条件下没有匹配的视频数据。' : '当前收藏夹暂无可展示的视频数据。' %></div>
+            <% } else { %>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>标题</th>
+                            <th>作者</th>
+                            <th>时长</th>
+                            <th>发布时间</th>
+                            <th>收藏时间</th>
+                            <th>简介</th>
+                            <th>播放 / 收藏 / 弹幕</th>
+                            <th>BVID</th>
+                            <th>ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% videos.forEach((video) => { %>
+                            <tr>
+                                <td>
+                                    <a class="video-link" href="https://www.bilibili.com/video/<%= video.bvid %>" target="_blank" rel="noreferrer"><%= video.title %></a>
+                                </td>
+                                <td><%= video.upper?.name || '-' %></td>
+                                <td class="muted"><%= formatDuration(video.duration) %></td>
+                                <td class="muted"><%= formatDateTime(video.pubtime) %></td>
+                                <td class="muted"><%= formatDateTime(video.fav_time) %></td>
+                                <td class="intro-cell" title="<%= (video.intro || '').replace(/\s+/g, ' ') %>"><%= video.intro || '-' %></td>
+                                <td class="muted"><%= video.cnt_info?.view_text_1 || video.cnt_info?.play || 0 %> / <%= video.cnt_info?.collect || 0 %> / <%= video.cnt_info?.danmaku || 0 %></td>
+                                <td class="muted"><%= video.bvid || '-' %></td>
+                                <td class="muted"><%= video.id || '-' %></td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            <% } %>
+        </div>
+
+        <div class="pagination">
+            <div class="muted">接口原生分页，每页最多 20 条，当前页是否还有下一页：<strong><%= hasMore ? '是' : '否' %></strong></div>
+            <div class="pager-links">
+                <% if (currentPage > 1) { %>
+                    <a class="pager-link" href="/folders/<%= mediaId %>?mid=<%= mid %>&pn=<%= currentPage - 1 %>&keyword=<%= encodeURIComponent(keyword || '') %>&type=<%= searchType %>">上一页</a>
+                <% } else { %>
+                    <span class="pager-link disabled">上一页</span>
+                <% } %>
+
+                <% if (hasMore && currentPage < totalPages) { %>
+                    <a class="pager-link" href="/folders/<%= mediaId %>?mid=<%= mid %>&pn=<%= currentPage + 1 %>&keyword=<%= encodeURIComponent(keyword || '') %>&type=<%= searchType %>">下一页</a>
+                <% } else { %>
+                    <span class="pager-link disabled">下一页</span>
+                <% } %>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

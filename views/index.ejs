@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f8; color: #1f2329; }
+        .page { max-width: 1280px; margin: 0 auto; padding: 32px 24px 48px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 24px; }
+        .title { margin: 0; font-size: 28px; line-height: 1.2; }
+        .subtitle { margin: 8px 0 0; color: #5c6470; font-size: 14px; }
+        .summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+        .card { min-width: 180px; padding: 16px; border: 1px solid #d9dde3; background: #fff; }
+        .card-label { color: #5c6470; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .card-value { margin-top: 8px; font-size: 24px; font-weight: 600; }
+        .error { margin-bottom: 20px; padding: 12px 14px; border: 1px solid #f0c2c2; background: #fff1f0; color: #b42318; }
+        .table-wrap { border: 1px solid #d9dde3; background: #fff; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 14px; border-bottom: 1px solid #ebeef2; text-align: left; font-size: 14px; vertical-align: top; }
+        th { background: #f8fafc; color: #475467; font-weight: 600; }
+        tr:last-child td { border-bottom: none; }
+        .folder-link { color: #175cd3; text-decoration: none; font-weight: 500; }
+        .folder-link:hover { text-decoration: underline; }
+        .muted { color: #667085; }
+        .empty { padding: 32px 16px; text-align: center; color: #667085; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            <div>
+                <h1 class="title"><%= title %></h1>
+                <p class="subtitle">当前展示的是 MID <strong><%= mid %></strong> 的公开收藏夹列表。点击收藏夹名称可查看内部视频表格。</p>
+            </div>
+        </div>
+
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="error">接口请求失败：<%= error %></div>
+        <% } %>
+
+        <div class="summary">
+            <div class="card">
+                <div class="card-label">收藏夹数量</div>
+                <div class="card-value"><%= count %></div>
+            </div>
+            <div class="card">
+                <div class="card-label">当前 MID</div>
+                <div class="card-value"><%= mid %></div>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <% if (!folders.length) { %>
+                <div class="empty">当前没有可展示的收藏夹数据。</div>
+            <% } else { %>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>收藏夹名称</th>
+                            <th>ID</th>
+                            <th>原始 FID</th>
+                            <th>视频数量</th>
+                            <th>属性位</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% folders.forEach((folder) => { %>
+                            <tr>
+                                <td>
+                                    <a class="folder-link" href="/folders/<%= folder.id %>?mid=<%= mid %>"><%= folder.title %></a>
+                                </td>
+                                <td><%= folder.id %></td>
+                                <td class="muted"><%= folder.fid %></td>
+                                <td><%= folder.media_count %></td>
+                                <td class="muted"><%= folder.attr %></td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>
