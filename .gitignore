@@ -21,6 +21,10 @@ npm-debug.log*
 *.db
 *.db-journal
 
+# SQLite WAL 模式的伴生文件
+*.sqlite-wal
+*.sqlite-shm
+
 # 编辑器与系统
 .DS_Store
 
