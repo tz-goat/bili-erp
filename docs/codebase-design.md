@@ -428,6 +428,17 @@ PUT    /api/items/:itemId/sync
 GET    /api/items/:itemId/sync-status
 ```
 
+### 7.6 读取路径与同步动作的区分
+
+上面这些接口分成两类，不要混着理解：
+
+- **页面读取**：只读本地库。首屏、切换收藏夹、翻页、筛选都属于这类
+- **上游同步**：打 B 站并写本地库。一期只有 `POST /api/imports` 一个
+
+也就是说，打开工作区不会触发全量导入，全量导入只发生在用户主动点「导入 / 刷新」时。
+完整的场景对照表和依赖关系见
+[read-paths-and-sync.md](file:///Users/dateng/pl-dashboard-2610/docs/read-paths-and-sync.md)。
+
 ## 8. 本地数据库设计方向
 
 一期建议把来源数据和本地增强数据分开。
@@ -436,6 +447,7 @@ GET    /api/items/:itemId/sync-status
 
 - `source_folders`
 - `source_items`
+- `source_folder_items`
 - `source_watch_later_items`
 - `import_runs`
 
@@ -453,6 +465,10 @@ GET    /api/items/:itemId/sync-status
 如果未来删掉本地增强数据表，系统会退回“只能看来源数据的只读原型”；  
 如果删掉来源数据表，本地建议和确认也失去事实基础。  
 两者各自承担独立复杂度，不应该混成一套表。
+
+这里还有一个一期必须提前定下来的边界：同一个视频跨收藏夹出现时，在系统内仍然视为同一个 `收藏项`。
+所以 `source_items` 存的是视频主记录，`source_folder_items` 和 `source_watch_later_items` 存的是“它当前出现在哪个来源容器里”。
+如果少了这层归属关系表，后面的建议、确认和同步状态就会被迫绑定到“某个收藏夹里的某条视频副本”，不符合前面已经确认的领域模型。
 
 ## 9. 建议生成的内部结构
 
