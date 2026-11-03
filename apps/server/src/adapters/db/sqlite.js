@@ -40,15 +40,13 @@ export function migrateDatabase() {
  */
 export function withTransaction(work) {
     const database = getDatabase()
-
-    database.exec('BEGIN')
-
+    database.exec('BEGIN')          // 开始一个事务
     try {
-        const result = work(database)
-        database.exec('COMMIT')
+        const result = work(database)   // 执行你传进来的那批写操作
+        database.exec('COMMIT')         // 全部成功 → 一起生效
         return result
     } catch (error) {
-        database.exec('ROLLBACK')
+        database.exec('ROLLBACK')       // 中途出错 → 全部撤销
         throw error
     }
 }
