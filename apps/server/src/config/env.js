@@ -15,6 +15,9 @@ export const DATA_DIRECTORY = path.join(PROJECT_ROOT, 'data')
 export const SERVER_PORT = Number(process.env.SERVER_PORT) || 3001
 export const DEFAULT_BILI_MID = process.env.BILI_MID?.trim() || '39640918'
 export const SQLITE_DATABASE_PATH = process.env.SQLITE_DATABASE_PATH?.trim() || path.join(DATA_DIRECTORY, 'pl-dashboard.sqlite')
+export const IMPORT_PAGE_SIZE = parsePositiveInteger(process.env.IMPORT_PAGE_SIZE, 40)
+export const IMPORT_MAX_PAGES_PER_FOLDER = parsePositiveInteger(process.env.IMPORT_MAX_PAGES_PER_FOLDER, 1000)
+export const IMPORT_FOLDER_CONCURRENCY = parsePositiveInteger(process.env.IMPORT_FOLDER_CONCURRENCY, 3)
 
 /**
  * 当前项目先继续复用 Node 内置的 env 加载能力，不额外引入 dotenv。
@@ -40,4 +43,14 @@ export function loadEnvFiles() {
  */
 export function ensureDataDirectory() {
     fs.mkdirSync(DATA_DIRECTORY, { recursive: true })
+}
+
+function parsePositiveInteger(rawValue, defaultValue) {
+    const numericValue = Number(rawValue)
+
+    if (!Number.isInteger(numericValue) || numericValue < 1) {
+        return defaultValue
+    }
+
+    return numericValue
 }

@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import { fetchAllFolderItems, fetchCreatedFolders } from '../adapters/bili/folders.js'
 import { getDatabase, migrateDatabase, withTransaction } from '../adapters/db/sqlite.js'
 import { TABLES } from '../adapters/db/schema.js'
+import { IMPORT_FOLDER_CONCURRENCY } from '../config/env.js'
 import {
     createImportRunDetail,
     createImportRunSummary,
@@ -12,6 +13,7 @@ import {
     IMPORT_SCOPE,
     IMPORT_STATUS
 } from '../domain/import.js'
+import { mapWithConcurrencyLimit } from './request-pool.js'
 
 const runningImports = new Map()
 
@@ -133,39 +135,78 @@ export async function getLatestImportRun(mid) {
  * 只有「拉收藏夹列表」自身失败才把整轮标记为 failed。
  */
 async function executeImportRun({ runId, mid }) {
-    const warnings = []
-
     try {
         const folders = await fetchCreatedFolders(mid)
-        let importedRelationCount = 0
-
-        for (const folder of folders) {
-            try {
-                const medias = (await fetchAllFolderItems(folder.id)).filter((media) => {
-                    return media?.id !== undefined && media?.id !== null
-                })
-                importedRelationCount += medias.length
-
-                withTransaction((database) => {
-                    upsertFolder(database, { runId, mid, folder })
-
-                    for (const media of medias) {
-                        upsertItem(database, media)
-                        upsertFolderItem(database, { runId, folder, media })
-                    }
-                })
-            } catch (error) {
-                warnings.push({
-                    title: folder.title || String(folder.id),
-                    message: error.message
-                })
+        const folderResults = await mapWithConcurrencyLimit(folders, {
+            concurrency: IMPORT_FOLDER_CONCURRENCY,
+            worker: async (folder) => {
+                return importFolderSnapshot({ runId, mid, folder })
             }
-        }
+        })
 
-        finalizeCompletedRun({ runId, mid, folderCount: folders.length, itemCount: importedRelationCount, warnings })
+        finalizeCompletedRun({
+            runId,
+            mid,
+            folderCount: folders.length,
+            itemCount: sumImportedRelationCount(folderResults),
+            warnings: collectFolderImportWarnings(folderResults)
+        })
     } catch (error) {
         finalizeFailedRun({ runId, mid, error })
     }
+}
+
+/**
+ * 单个收藏夹的抓取与落库被收成一个独立单元：
+ * 这样外层只负责任务调度，单夹失败也能稳定退化成 warning。
+ */
+async function importFolderSnapshot({ runId, mid, folder }) {
+    try {
+        const medias = await fetchImportableFolderItems(folder.id)
+
+        withTransaction((database) => {
+            upsertFolder(database, { runId, mid, folder })
+
+            for (const media of medias) {
+                upsertItem(database, media)
+                upsertFolderItem(database, { runId, folder, media })
+            }
+        })
+
+        return {
+            importedRelationCount: medias.length,
+            warning: null
+        }
+    } catch (error) {
+        return {
+            importedRelationCount: 0,
+            warning: {
+                title: folder.title || String(folder.id),
+                message: error.message
+            }
+        }
+    }
+}
+
+/**
+ * 上游偶尔会混入空洞项，这里在真正写库前先过滤，避免把无主键的脏数据带进事务。
+ */
+async function fetchImportableFolderItems(folderId) {
+    return (await fetchAllFolderItems(folderId)).filter((media) => {
+        return media?.id !== undefined && media?.id !== null
+    })
+}
+
+function sumImportedRelationCount(folderResults) {
+    return folderResults.reduce((total, folderResult) => {
+        return total + folderResult.importedRelationCount
+    }, 0)
+}
+
+function collectFolderImportWarnings(folderResults) {
+    return folderResults.flatMap((folderResult) => {
+        return folderResult.warning ? [folderResult.warning] : []
+    })
 }
 
 /**
@@ -419,6 +460,7 @@ function upsertFolderItem(database, { runId, folder, media }) {
  * 以覆盖服务重启后内存丢失、但库里仍残留 running 的情况。
  */
 function findRunningImportByMid(mid) {
+    // 因为 一轮导入要跑几十秒到几分钟 ，而这个窗口期里用户完全可能再点一次。
     for (const run of runningImports.values()) {
         if (run.mid === mid) {
             return run
