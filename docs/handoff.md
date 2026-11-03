@@ -36,6 +36,10 @@ Bilibili 收藏夹后台管理系统。
 | 4    | [GLOSSARY.md](file:///Users/dateng/pl-dashboard-2610/GLOSSARY.md)                                              | 统一术语                   |
 | 5    | [ADR 0001](file:///Users/dateng/pl-dashboard-2610/docs/adr/0001-source-data-and-local-enhancement-boundary.md) | 来源数据只读的核心边界     |
 
+想知道「具体做到哪一步了」，直接看
+[progress.md](file:///Users/dateng/pl-dashboard-2610/docs/progress.md)，
+那里按迭代拆成了可勾选的步骤清单，本文件只保留里程碑级状态。
+
 如果要写代码，再补：
 
 | 文件                                                                                                 | 作用           |
@@ -173,15 +177,20 @@ CLI 不进当前主计划，作为后续派生方向保留。
 ## 7. 仓库状态
 
 ```text
-commit : 18330ad chore: 建立版本控制基线
+HEAD   : beecb78 docs: 补齐接口契约、读写分离说明与交接文档
+基线   : 18330ad chore: 建立版本控制基线
+本地领先 origin/master 3 个提交，尚未 push
 ```
 
-**基线提交之后的产物全部未提交**，包括：
+基线之后分三个提交落盘：
 
-- 多份新文档
-- `apps/server/src/` 整个目录
-- `codebase-design.md` 的修改
-- `views/test.json` 的删除
+| 提交      | 内容                                          |
+| --------- | --------------------------------------------- |
+| `4f1cf40` | 忽略 WAL 伴生文件，移除凭据 `views/test.json` |
+| `c4b0089` | 后端骨架 + `import-all` 最薄实现              |
+| `beecb78` | 11 份新文档 + `codebase-design.md` 更新       |
+
+工作区当前干净。注意 `views/test.json` 只是从当前树删除，**历史提交里仍有真实登录态**。
 
 ## 8. 需要知道的坑
 
