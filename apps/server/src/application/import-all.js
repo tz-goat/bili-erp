@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 
 import { fetchAllFolderItems, fetchCreatedFolders } from '../adapters/bili/folders.js'
+import { isThrottledBiliError } from '../adapters/bili/request-pacing.js'
 import { getDatabase, migrateDatabase, withTransaction } from '../adapters/db/sqlite.js'
 import { TABLES } from '../adapters/db/schema.js'
 import { IMPORT_FOLDER_CONCURRENCY } from '../config/env.js'
@@ -131,19 +132,31 @@ export async function getLatestImportRun(mid) {
 
 /**
  * 导入主流程：拉收藏夹列表 → 逐个拉内容并落库 → 收口 run 状态。
- * 边界：单个收藏夹失败只记 warning 不中断整轮（常见于私密或异常收藏夹），
- * 只有「拉收藏夹列表」自身失败才把整轮标记为 failed。
+ * 边界：单个收藏夹失败只记 warning 不中断整轮（常见于私密或异常收藏夹）；
+ * 一旦命中上游限流（412/429）则整体中止，避免在已被限流的端点上继续加压。
  */
 async function executeImportRun({ runId, mid }) {
+    // 限流后请求池还会继续取后续收藏夹，靠这个标记让它们直接短路，不再发出任何请求
+    const throttle = { aborted: false, message: null }
+
     try {
         const folders = await fetchCreatedFolders(mid)
         const folderResults = await mapWithConcurrencyLimit(folders, {
             concurrency: IMPORT_FOLDER_CONCURRENCY,
             // 下标即平台返回顺序，直接存下来，左栏才能跟着上游顺序走
             worker: async (folder, folderIndex) => {
-                return importFolderSnapshot({ runId, mid, folder, sortOrder: folderIndex })
+                if (throttle.aborted) {
+                    return { folderId: createFolderId(folder.id), importedRelationCount: 0, warning: null }
+                }
+
+                return importFolderSnapshot({ runId, mid, folder, sortOrder: folderIndex, throttle })
             }
         })
+
+        if (throttle.aborted) {
+            finalizeFailedRun({ runId, error: new Error(`上游限流，已中止本轮导入：${throttle.message}`) })
+            return
+        }
 
         finalizeCompletedRun({
             runId,
@@ -160,11 +173,12 @@ async function executeImportRun({ runId, mid }) {
 
 /**
  * 单个收藏夹的抓取与落库被收成一个独立单元：
- * 这样外层只负责任务调度，单夹失败也能稳定退化成 warning。
+ * 这样外层只负责任务调度，单夹失败也能稳定退化成 warning；
+ * 命中限流则把 throttle 标记置位，由外层统一决定中止整轮。
  * 收藏夹自身快照先单独落库，与内容是否拉取成功解耦，
  * 否则本轮内容失败时它的标题与排序会停在上一轮甚至为空。
  */
-async function importFolderSnapshot({ runId, mid, folder, sortOrder }) {
+async function importFolderSnapshot({ runId, mid, folder, sortOrder, throttle }) {
     const folderId = createFolderId(folder.id)
 
     withTransaction((database) => {
@@ -187,6 +201,18 @@ async function importFolderSnapshot({ runId, mid, folder, sortOrder }) {
             warning: null
         }
     } catch (error) {
+        // 限流是本轮整体的上游状态，不是这个收藏夹本身有问题，继续跑只会扩大影响
+        if (isThrottledBiliError(error)) {
+            throttle.aborted = true
+            throttle.message = `${folder.title || folder.id}（${error.message}）`
+
+            return {
+                folderId,
+                importedRelationCount: 0,
+                warning: null
+            }
+        }
+
         return {
             folderId,
             importedRelationCount: 0,

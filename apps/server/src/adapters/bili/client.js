@@ -1,3 +1,6 @@
+import { IMPORT_RETRY_MAX_ATTEMPTS } from '../../config/env.js'
+import { getRetryDelayMs, isRetryableBiliError, sleep, waitForGlobalRequestSlot } from './request-pacing.js'
+
 /**
  * B 站请求头统一在这里组装，避免每个 adapter 各自拼一份浏览器伪装逻辑。
  */
@@ -53,8 +56,27 @@ function buildHeaders() {
 
 /**
  * adapter 层统一拦截 HTTP 和业务错误，application 只面对干净的上游数据。
+ * 每次请求前先过全局节奏控制；命中风控或网络抖动时按配置退避重试，
+ * 重试耗尽后仍抛出原错误，失败语义与改造前保持一致。
  */
 export async function fetchBiliJson(url) {
+    for (let attempt = 0; ; attempt += 1) {
+        await waitForGlobalRequestSlot()
+
+        try {
+            return await requestBiliJson(url)
+        } catch (error) {
+            // 已用满重试次数或错误不可重试时，直接把原错误交给上层判定
+            if (attempt >= IMPORT_RETRY_MAX_ATTEMPTS || !isRetryableBiliError(error)) {
+                throw error
+            }
+
+            await sleep(getRetryDelayMs(attempt + 1))
+        }
+    }
+}
+
+async function requestBiliJson(url) {
     const response = await fetch(url, { headers: buildHeaders() })
 
     if (!response.ok) {

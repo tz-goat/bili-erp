@@ -1,4 +1,5 @@
 import { fetchBiliJson } from './client.js'
+import { waitBeforeNextPage } from './request-pacing.js'
 import { IMPORT_MAX_PAGES_PER_FOLDER, IMPORT_PAGE_SIZE } from '../../config/env.js'
 
 /**
@@ -27,20 +28,25 @@ export async function fetchFolderItemsPage(mediaId, page = 1, pageSize = IMPORT_
 
     const url = `https://api.bilibili.com/x/v3/fav/resource/list?${query.toString()}`
     const body = await fetchBiliJson(url)
-    const medias = body.data?.medias
-    const hasMore = body.data?.has_more
+    const data = body.data
 
-    if (!Array.isArray(medias)) {
+    // data 整体缺失说明上游没给出可用载荷，不能静默当成空收藏夹，否则会误触发整夹软失效
+    if (!data) {
+        throw new Error(`upstream missing data payload: mediaId=${mediaId} page=${page}`)
+    }
+
+    // 空收藏夹会返回 null 或缺省的 medias，这属于合法空结果；只有类型明显不对才拦截
+    if (data.medias != null && !Array.isArray(data.medias)) {
         throw new Error(`upstream invalid medias payload: mediaId=${mediaId} page=${page}`)
     }
 
-    if (!isValidHasMoreValue(hasMore)) {
+    if (!isValidHasMoreValue(data.has_more)) {
         throw new Error(`upstream invalid has_more payload: mediaId=${mediaId} page=${page}`)
     }
 
     return {
-        medias,
-        hasMore: Boolean(hasMore)
+        medias: data.medias ?? [],
+        hasMore: Boolean(data.has_more)
     }
 }
 
@@ -51,6 +57,11 @@ export async function fetchFolderItemsPage(mediaId, page = 1, pageSize = IMPORT_
 export async function fetchAllFolderItems(mediaId) {
     const items = []
     for (let page = 1; page <= IMPORT_MAX_PAGES_PER_FOLDER; page += 1) {
+        // 第 2 页起才需要页间隔，第 1 页紧跟收藏夹列表请求，再等一次没有意义
+        if (page > 1) {
+            await waitBeforeNextPage()
+        }
+
         const result = await fetchFolderItemsPage(mediaId, page)
         items.push(...result.medias)
 

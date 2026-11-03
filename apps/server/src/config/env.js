@@ -19,6 +19,17 @@ export const IMPORT_PAGE_SIZE = parsePositiveInteger(process.env.IMPORT_PAGE_SIZ
 export const IMPORT_MAX_PAGES_PER_FOLDER = parsePositiveInteger(process.env.IMPORT_MAX_PAGES_PER_FOLDER, 1000)
 export const IMPORT_FOLDER_CONCURRENCY = parsePositiveInteger(process.env.IMPORT_FOLDER_CONCURRENCY, 3)
 
+// 请求节奏统一交给 adapters/bili/request-pacing.js 使用，
+// 全部支持设为 0，用来临时关掉节流以便对照测试。
+export const IMPORT_REQUEST_DELAY_MIN_MS = parseNonNegativeInteger(process.env.IMPORT_REQUEST_DELAY_MIN_MS, 300)
+export const IMPORT_REQUEST_DELAY_MAX_MS = parseNonNegativeInteger(process.env.IMPORT_REQUEST_DELAY_MAX_MS, 800)
+export const IMPORT_PAGE_DELAY_MIN_MS = parseNonNegativeInteger(process.env.IMPORT_PAGE_DELAY_MIN_MS, 500)
+export const IMPORT_PAGE_DELAY_MAX_MS = parseNonNegativeInteger(process.env.IMPORT_PAGE_DELAY_MAX_MS, 1200)
+
+// 重试只兜网络抖动；412/429 属于上游限流，不重试而是直接中止整轮导入。
+export const IMPORT_RETRY_MAX_ATTEMPTS = parseNonNegativeInteger(process.env.IMPORT_RETRY_MAX_ATTEMPTS, 1)
+export const IMPORT_RETRY_BASE_DELAY_MS = parseNonNegativeInteger(process.env.IMPORT_RETRY_BASE_DELAY_MS, 2000)
+
 /**
  * 当前项目先继续复用 Node 内置的 env 加载能力，不额外引入 dotenv。
  */
@@ -49,6 +60,21 @@ function parsePositiveInteger(rawValue, defaultValue) {
     const numericValue = Number(rawValue)
 
     if (!Number.isInteger(numericValue) || numericValue < 1) {
+        return defaultValue
+    }
+
+    return numericValue
+}
+
+/** 节流参数允许为 0，所以不能复用要求正数的 parsePositiveInteger。 */
+function parseNonNegativeInteger(rawValue, defaultValue) {
+    if (rawValue === undefined || String(rawValue).trim() === '') {
+        return defaultValue
+    }
+
+    const numericValue = Number(rawValue)
+
+    if (!Number.isInteger(numericValue) || numericValue < 0) {
         return defaultValue
     }
 
