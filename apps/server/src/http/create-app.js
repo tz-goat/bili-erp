@@ -1,6 +1,7 @@
 import express from 'express'
 
 import { createImportRoutes } from '../routes/import-routes.js'
+import { createWorkspaceRoutes } from '../routes/workspace-routes.js'
 
 /**
  * 一期先把最小 API 壳子立起来，后续再继续往里挂 workspace 和 suggestion 路由。
@@ -14,6 +15,7 @@ export function createApp() {
     })
 
     app.use('/api/imports', createImportRoutes())
+    app.use('/api/workspace', createWorkspaceRoutes())
 
     return app
 }
