@@ -21,7 +21,8 @@ Bilibili 收藏夹后台管理系统。
 
 - 需求已收敛，决策已固化
 - `import-all` 已有最薄可运行实现，并已实际写入 SQLite
-- 其余 `workspace` / `suggestion` / `decision` / `watch-later` 仍主要停留在契约层
+- `GET /api/workspace/sidebar` 已接出最薄实现，读本地库返回左栏导航
+- 其余 `suggestion` / `decision` / `watch-later` 及右栏 `container view` 仍主要停留在契约层
 - 原型 `app.js` 仍可运行，可随时对照真实 B 站数据
 
 ## 3. 新对话建议阅读顺序
@@ -87,7 +88,9 @@ apps/server/src/
 │       ├── schema.js          # 表定义与建表语句
 │       └── sqlite.js          # SQLite 连接与建表
 ├── application/
-│   └── import-all.js          # 导入 run 的最薄实现
+│   ├── import-all.js            # 导入 run 的最薄实现
+│   ├── get-workspace-sidebar.js # 工作区左栏导航的最薄实现
+│   └── request-pool.js        # 导入用有限并发工具
 ├── config/
 │   └── env.js                 # 环境变量与路径配置
 ├── domain/
@@ -103,7 +106,8 @@ apps/server/src/
 │   ├── create-app.js          # 最小 API 壳子
 │   └── start-server.js        # 本地启动入口
 └── routes/
-    └── import-routes.js       # `POST/GET /api/imports*`
+    ├── import-routes.js       # `POST/GET /api/imports*`
+    └── workspace-routes.js    # `GET /api/workspace/sidebar`
 ```
 
 其余目录和模块仍基本为空，属于当前阶段的正常现象。
@@ -168,27 +172,31 @@ CLI 不进当前主计划，作为后续派生方向保留。
 
 按优先级：
 
-1. **写 `GET /api/workspace/sidebar` 与 `GET /api/workspace/containers/:id/view` 的最薄实现** —— 把“读本地库”主链路接出来
+1. **写 `GET /api/workspace/containers/:id/view` 的最薄实现** —— 左栏已通，只差右栏明细
 2. 搭 React + Ant Design 工作区骨架
-3. 补 `suggestion` / `decision` / `watch-later` 的最薄写入实现
+3. 补 `key-folders` / `folder-profile` / `suggestion` / `decision` / `watch-later` 的最薄写入实现
 
 契约覆盖情况的完整表格见 [read-paths-and-sync.md 第 8 节](file:///Users/dateng/pl-dashboard-2610/docs/read-paths-and-sync.md#L139-L154)。
 
 ## 7. 仓库状态
 
 ```text
-HEAD   : beecb78 docs: 补齐接口契约、读写分离说明与交接文档
+HEAD   : a36d68f docs: 新增实施进度清单并修正交接状态
 基线   : 18330ad chore: 建立版本控制基线
-本地领先 origin/master 3 个提交，尚未 push
+本地领先 origin/master 7 个提交，尚未 push
 ```
 
-基线之后分三个提交落盘：
+基线之后分七个提交落盘：
 
 | 提交      | 内容                                          |
 | --------- | --------------------------------------------- |
 | `4f1cf40` | 忽略 WAL 伴生文件，移除凭据 `views/test.json` |
 | `c4b0089` | 后端骨架 + `import-all` 最薄实现              |
 | `beecb78` | 11 份新文档 + `codebase-design.md` 更新       |
+| `dfe99bb` | 导入改为有限并发并补分页兜底                  |
+| `c1bff3c` | 分页尺寸统一调整为 40                         |
+| `5d6f1cf` | 补充 `withTransaction` 注释                   |
+| `a36d68f` | 新增 `progress.md` 并修正交接状态             |
 
 工作区当前干净。注意 `views/test.json` 只是从当前树删除，**历史提交里仍有真实登录态**。
 
@@ -202,8 +210,13 @@ HEAD   : beecb78 docs: 补齐接口契约、读写分离说明与交接文档
 ### 8.2 现有原型
 
 - [app.js](file:///Users/dateng/pl-dashboard-2610/app.js) 跑在 3000 端口，是当前可运行的原型
-- [apps/server/src/http/start-server.js](file:///Users/dateng/pl-dashboard-2610/apps/server/src/http/start-server.js) 可通过 `npm run server` 启动 3001 端口的最小 API
+- [apps/server/src/http/start-server.js](file:///Users/dateng/pl-dashboard-2610/apps/server/src/http/start-server.js) 可用 `pnpm run server` 启动 3001 端口的最小 API
 - [index.js](file:///Users/dateng/pl-dashboard-2610/index.js) 是个跑在 3003 端口的 mock BFF，是早期探索残留，`package.json` 的 `main` 还指向它
+
+### 8.2.1 起服务的两个坑
+
+- `package.json` 的 `devEngines` 要求 pnpm，直接 `npm run server` 会被拦下（`EBADDEVENGINES`），要用 `pnpm run server`，或直接 `node apps/server/src/http/start-server.js`
+- 3001 端口容易残留旧进程：端口被占时新进程仍可能打印监听成功，请求却打到旧代码上；换 `SERVER_PORT=3011` 之类的端口可快速自证
 
 ### 8.3 上游限制
 
