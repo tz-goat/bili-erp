@@ -66,6 +66,7 @@ export const SCHEMA = {
             title: 'TEXT NOT NULL',
             media_count: 'INTEGER NOT NULL DEFAULT 0',
             attr: 'INTEGER',
+            sort_order: 'INTEGER', // 平台返回列表里的下标，仅用于左栏排序，不参与业务判断
             latest_import_run_id: 'TEXT REFERENCES import_runs(id)',
             raw_json: 'TEXT',
             created_at: "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",

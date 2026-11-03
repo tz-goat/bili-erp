@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 
 import { ensureDataDirectory, SQLITE_DATABASE_PATH } from '../../config/env.js'
-import { SQLITE_SCHEMA_STATEMENTS } from './schema.js'
+import { SCHEMA, SQLITE_SCHEMA_STATEMENTS } from './schema.js'
 
 let databaseInstance = null
 
@@ -32,7 +32,27 @@ export function migrateDatabase() {
         database.exec(statement)
     }
 
+    ensureMissingColumns(database)
+
     return database
+}
+
+/**
+ * 建表用的是 CREATE TABLE IF NOT EXISTS，已有库不会自动拿到 schema 后加的列，
+ * 所以这里补一步「缺哪列就加哪列」。只覆盖新增可空列，改类型仍需真正的 migration。
+ */
+function ensureMissingColumns(database) {
+    for (const [tableName, tableDefinition] of Object.entries(SCHEMA)) {
+        const existingColumnNames = new Set(
+            database.prepare(`PRAGMA table_info(${tableName})`).all().map((column) => column.name)
+        )
+
+        for (const [columnName, columnSql] of Object.entries(tableDefinition.columns)) {
+            if (!existingColumnNames.has(columnName)) {
+                database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnSql}`)
+            }
+        }
+    }
 }
 
 /**

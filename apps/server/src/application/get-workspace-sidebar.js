@@ -49,7 +49,8 @@ export async function getWorkspaceSidebar({ mid = DEFAULT_BILI_MID } = {}) {
 /**
  * 左栏只需要「可见条目数」和「待处理数」，所以聚合直接在这条查询里算好，
  * 避免把 source_folder_items × item_decisions 的 join 细节漏到路由层。
- * 一级排序用 created_at、二级用 rowid，保证同一次导入内的顺序稳定。
+ * 排序以导入时记下的 sort_order 为准，保证与平台顺序一致；
+ * 没有顺序记录的（例如平台已删除、本地留存的残影）统一排到最后。
  */
 function listFolderRows(mid) {
     return getDatabase().prepare(`
@@ -77,7 +78,7 @@ function listFolderRows(mid) {
         LEFT JOIN ${TABLES.itemDecisions} AS d ON d.item_id = sfi.item_id
         WHERE f.source_mid = $sourceMid
         GROUP BY f.id
-        ORDER BY f.created_at ASC, f.rowid ASC
+        ORDER BY f.sort_order IS NULL, f.sort_order ASC, f.rowid ASC
     `).all({
         sourceMid: mid,
         pendingStatus: ITEM_DECISION_STATUS.pending

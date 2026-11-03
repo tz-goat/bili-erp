@@ -139,8 +139,9 @@ async function executeImportRun({ runId, mid }) {
         const folders = await fetchCreatedFolders(mid)
         const folderResults = await mapWithConcurrencyLimit(folders, {
             concurrency: IMPORT_FOLDER_CONCURRENCY,
-            worker: async (folder) => {
-                return importFolderSnapshot({ runId, mid, folder })
+            // 下标即平台返回顺序，直接存下来，左栏才能跟着上游顺序走
+            worker: async (folder, folderIndex) => {
+                return importFolderSnapshot({ runId, mid, folder, sortOrder: folderIndex })
             }
         })
 
@@ -159,14 +160,18 @@ async function executeImportRun({ runId, mid }) {
 /**
  * 单个收藏夹的抓取与落库被收成一个独立单元：
  * 这样外层只负责任务调度，单夹失败也能稳定退化成 warning。
+ * 收藏夹自身快照先单独落库，与内容是否拉取成功解耦，
+ * 否则本轮内容失败时它的标题与排序会停在上一轮甚至为空。
  */
-async function importFolderSnapshot({ runId, mid, folder }) {
+async function importFolderSnapshot({ runId, mid, folder, sortOrder }) {
+    withTransaction((database) => {
+        upsertFolder(database, { runId, mid, folder, sortOrder })
+    })
+
     try {
         const medias = await fetchImportableFolderItems(folder.id)
 
         withTransaction((database) => {
-            upsertFolder(database, { runId, mid, folder })
-
             for (const media of medias) {
                 upsertItem(database, media)
                 upsertFolderItem(database, { runId, folder, media })
@@ -279,7 +284,7 @@ function finalizeFailedRun({ runId, error }) {
 /**
  * 收藏夹快照写入：按确定性 id 幂等 upsert，重复导入只刷新最新字段与 raw_json。
  */
-function upsertFolder(database, { runId, mid, folder }) {
+function upsertFolder(database, { runId, mid, folder, sortOrder }) {
     const folderId = createFolderId(folder.id)
     const now = nowIsoString()
 
@@ -292,6 +297,7 @@ function upsertFolder(database, { runId, mid, folder }) {
             title,
             media_count,
             attr,
+            sort_order,
             latest_import_run_id,
             raw_json,
             created_at,
@@ -304,6 +310,7 @@ function upsertFolder(database, { runId, mid, folder }) {
             $title,
             $mediaCount,
             $attr,
+            $sortOrder,
             $latestImportRunId,
             $rawJson,
             $createdAt,
@@ -316,6 +323,7 @@ function upsertFolder(database, { runId, mid, folder }) {
             title = excluded.title,
             media_count = excluded.media_count,
             attr = excluded.attr,
+            sort_order = excluded.sort_order,
             latest_import_run_id = excluded.latest_import_run_id,
             raw_json = excluded.raw_json,
             updated_at = excluded.updated_at
@@ -327,6 +335,7 @@ function upsertFolder(database, { runId, mid, folder }) {
         title: folder.title || '',
         mediaCount: Number(folder.media_count) || 0,
         attr: Number.isFinite(Number(folder.attr)) ? Number(folder.attr) : null,
+        sortOrder: Number.isInteger(sortOrder) ? sortOrder : null,
         latestImportRunId: runId,
         rawJson: JSON.stringify(folder),
         createdAt: now,
