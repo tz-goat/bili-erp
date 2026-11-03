@@ -150,7 +150,8 @@ async function executeImportRun({ runId, mid }) {
             mid,
             folderCount: folders.length,
             itemCount: sumImportedRelationCount(folderResults),
-            warnings: collectFolderImportWarnings(folderResults)
+            warnings: collectFolderImportWarnings(folderResults),
+            failedFolderIds: collectFailedFolderIds(folderResults)
         })
     } catch (error) {
         finalizeFailedRun({ runId, mid, error })
@@ -164,6 +165,8 @@ async function executeImportRun({ runId, mid }) {
  * 否则本轮内容失败时它的标题与排序会停在上一轮甚至为空。
  */
 async function importFolderSnapshot({ runId, mid, folder, sortOrder }) {
+    const folderId = createFolderId(folder.id)
+
     withTransaction((database) => {
         upsertFolder(database, { runId, mid, folder, sortOrder })
     })
@@ -179,11 +182,13 @@ async function importFolderSnapshot({ runId, mid, folder, sortOrder }) {
         })
 
         return {
+            folderId,
             importedRelationCount: medias.length,
             warning: null
         }
     } catch (error) {
         return {
+            folderId,
             importedRelationCount: 0,
             warning: {
                 title: folder.title || String(folder.id),
@@ -214,32 +219,40 @@ function collectFolderImportWarnings(folderResults) {
     })
 }
 
+function collectFailedFolderIds(folderResults) {
+    return folderResults.flatMap((folderResult) => {
+        return folderResult.warning ? [folderResult.folderId] : []
+    })
+}
+
 /**
  * 成功收口本轮导入。
  * 关键副作用：把本轮未再出现的归属关系软失效（is_active = 0）而非物理删除，
  * 以保留用户在平台侧已移除、但本地仍有整理记录的历史。
+ * 例外：本轮拉取失败的收藏夹不参与软失效，否则一次网络抖动就会把整夹内容清空。
  */
-function finalizeCompletedRun({ runId, mid, folderCount, itemCount, warnings }) {
+function finalizeCompletedRun({ runId, mid, folderCount, itemCount, warnings, failedFolderIds }) {
     const finishedAt = nowIsoString()
+    // 失败夹数量不定，这里改用位置参数，空数组时不拼这段条件
+    const excludeFailedFoldersSql = failedFolderIds.length > 0
+        ? `AND folder_id NOT IN (${failedFolderIds.map(() => '?').join(', ')})`
+        : ''
 
     withTransaction((database) => {
         database.prepare(`
             UPDATE ${TABLES.sourceFolderItems}
             SET
                 is_active = 0,
-                updated_at = $updatedAt
+                updated_at = ?
             WHERE folder_id IN (
                 SELECT id
                 FROM ${TABLES.sourceFolders}
-                WHERE source_mid = $sourceMid
+                WHERE source_mid = ?
             )
-            AND COALESCE(last_seen_import_run_id, '') != $runId
+            AND COALESCE(last_seen_import_run_id, '') != ?
             AND is_active = 1
-        `).run({
-            updatedAt: finishedAt,
-            sourceMid: mid,
-            runId
-        })
+            ${excludeFailedFoldersSql}
+        `).run(finishedAt, mid, runId, ...failedFolderIds)
 
         database.prepare(`
             UPDATE ${TABLES.importRuns}
