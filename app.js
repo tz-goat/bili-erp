@@ -5,7 +5,7 @@ const app = express()
 
 const PORT = 3000
 const DEFAULT_MID = '39640918'
-const PAGE_SIZE = 20
+const PAGE_SIZE = 40
 
 loadEnvFiles()
 

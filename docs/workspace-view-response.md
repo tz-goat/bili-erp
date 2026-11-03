@@ -31,7 +31,7 @@ GET /api/workspace/containers/:containerId/view
 
 ```text
 page=1
-pageSize=20
+pageSize=40
 keyword=
 sortBy=fav_time
 sortOrder=desc
