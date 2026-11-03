@@ -227,3 +227,14 @@ sortOrder=desc
 - `list.items[].sync.lastErrorMessage`
 
 这样 React `工作区` 主界面不需要反复改大结构。
+
+## 12. 一期实现口径
+
+实现落在 `apps/server/src/application/get-workspace-view.js`，与上文 sketch 的差异集中在这里：
+
+- **只支持 `folder` 容器**：稍后再看池还没接入导入，请求不存在的容器返回 `404 { "error": "container_not_found" }`，而不是返回一份空视图
+- **时间字段是展示格式**：库里存 ISO（UTC），接口返回本地时间的 `YYYY-MM-DD HH:mm:ss`；空值或非法时间统一返回 `null`
+- **`stats` 是容器级**：不受 `keyword` 影响。用户看的是这个收藏夹整体有多少待处理，而不是「当前这 20 条里有多少待处理」
+- **建议摘要按 item 级取最新分组**：不按 `context_folder_id` 过滤，保证同一个收藏项在不同容器下看到同一份最新建议
+- **排序白名单**：`sortBy` 只支持 `fav_time` / `publish_time` / `title`，非法值连同 `page` / `pageSize` / `sortOrder` 一起回落默认值，避免脏参数进 SQL
+- **`watchLater` 恒为 `null` 占位**：`folder` 容器下这组字段没有业务含义，等稍后再看池接通再填
