@@ -7,6 +7,9 @@ export const WORKSPACE_CONTAINER_TYPES = {
     watchLater: 'watch_later'
 }
 
+/** 路径里的容器 id 在本地库里查不到时，按资源不存在返回而不是空视图。 */
+export const CONTAINER_NOT_FOUND = 'container_not_found'
+
 /**
  * 工作区默认筛选条件。
  * 这里集中收口 page / keyword / sort，后续路由和 application 都围绕这一份契约对齐。
