@@ -222,3 +222,14 @@ AND completedAt != null
 | 用例编排     | `apps/server/src/application/save-folder-profile.js` |
 | DB 读写      | `apps/server/src/adapters/db/*`             |
 | HTTP 路由    | `apps/server/src/routes/*`                  |
+
+## 13. 一期实现口径
+
+实现落在 `apps/server/src/application/save-folder-profile.js`，几处细节在这里固定：
+
+- **Body 整份覆盖**：文本字段先 `trim` 再落库，`keywords` 去空白后过滤空串；任一字段 shape 不合法就整份拒绝，不做部分落库
+- **校验顺序**：收藏夹不存在（404）→ payload 不合法（400）→ 不是关键收藏夹（409）
+- **`completed_at` 落库为 ISO**：库里存 ISO（UTC），接口返回本地时间 `YYYY-MM-DD HH:mm:ss`
+- **`created_at` 不在 upsert 时覆盖**：只刷新内容与 `updated_at`，保住「首次录入」时间
+- **`completedAt` 与 `profileCompleted` 都由服务端算**：请求里传这两个字段会被忽略
+

@@ -209,3 +209,14 @@ GET  /api/workspace/sidebar -> 读工作区左栏 view model
 | 用例编排     | `apps/server/src/application/set-key-folders.js` |
 | DB 读写      | `apps/server/src/adapters/db/*`                  |
 | HTTP 路由    | `apps/server/src/routes/*`                       |
+
+## 13. 一期实现口径
+
+实现落在 `apps/server/src/application/set-key-folders.js`，几处细节在这里固定：
+
+- **提交的是全集，落库用「先删后插」**：在一个事务里清掉该账号（`source_mid`）下所有旧标记，再写入本次集合，避免中途失败留下「旧的删了、新的没写」的半截状态
+- **只删 `key_folders`，不碰 `folder_profiles`**：取消勾选不能顺手清掉用户已填的说明，否则重新勾回时无法复用
+- **非法 id 的判定顺带覆盖 `watch_later`**：`watch_later` 不在 `source_folders` 里，存在性校验会自然拦下，不需要单写一条特判
+- **非字符串或纯空白的 id 也算非法**：不静默丢弃，而是随 `folderIds` 一起回传，方便表单层定位
+- **`updatedAt` 是展示格式**：库里存 ISO（UTC），接口返回本地时间 `YYYY-MM-DD HH:mm:ss`
+- **`marked_at` 每次全量提交都会刷新**：一期没有依赖它的「首次标记时间」语义，保持实现简单；将来真需要再改成保留原值
