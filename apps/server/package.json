@@ -1,0 +1,14 @@
+{
+  "name": "@pl-dashboard/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/http/start-server.js"
+  },
+  "dependencies": {
+    "ejs": "^7.0.2",
+    "express": "^5.3.0",
+    "path": "^0.12.7"
+  }
+}
