@@ -2,6 +2,7 @@ import { DEFAULT_BILI_MID } from '../config/env.js'
 import { getDatabase, migrateDatabase } from '../adapters/db/sqlite.js'
 import { TABLES } from '../adapters/db/schema.js'
 import { ITEM_DECISION_STATUS } from '../domain/item-decision.js'
+import { formatDateTime } from './format-datetime.js'
 import {
     createEmptySuggestionSummary,
     createEmptyWorkspaceView,
@@ -361,27 +362,6 @@ function formatDurationLabel(seconds) {
     return hours > 0
         ? `${hours}:${pad2(minutes)}:${pad2(remainSeconds)}`
         : `${pad2(minutes)}:${pad2(remainSeconds)}`
-}
-
-/**
- * 库里存的是 ISO（UTC）串，这里转成表格展示用的本地时间。
- * 边界：空值和非时间串都返回 null，避免把 "Invalid Date" 渲染到界面上。
- */
-function formatDateTime(isoString) {
-    if (!isoString) {
-        return null
-    }
-
-    const date = new Date(isoString)
-
-    if (Number.isNaN(date.getTime())) {
-        return null
-    }
-
-    return [
-        `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`,
-        `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
-    ].join(' ')
 }
 
 function toCount(value) {
