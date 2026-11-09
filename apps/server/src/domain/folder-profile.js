@@ -13,8 +13,8 @@ export const FOLDER_NOT_FOUND = 'folder_not_found'
 export const INVALID_FOLDER_PROFILE_PAYLOAD = 'invalid_folder_profile_payload'
 
 /**
- * `notes` 只是补充上下文，不参与完成判定。
- * 完成态只看 include/exclude/keywords/purpose 这四项是否齐全。
+ * 一期初始化先收缩成轻输入：用户只需要给收藏夹写一句用途说明。
+ * 其余结构化字段先保留在模型里，留给后续 Agent 草拟后再由用户微调。
  */
 export function createFolderProfileInput(overrides = {}) {
     return {
@@ -47,15 +47,11 @@ export function createFolderProfile(overrides = {}) {
 
 /**
  * `completedAt` 表达的是“第一次进入完成态”的时间，而不是每次保存时间。
- * 这样 sidebar 和 suggestion 才能共享同一个稳定口径。
+ * 当前完成态只看 `purpose` 是否非空；结构化字段的完整度不再阻塞初始化闭环。
  */
 export function isFolderProfileCompleted(input) {
-    const includeTopics = input.includeTopics?.trim() || ''
-    const excludeTopics = input.excludeTopics?.trim() || ''
     const purpose = input.purpose?.trim() || ''
-    const keywords = Array.isArray(input.keywords) ? input.keywords.filter(Boolean) : []
-
-    return Boolean(includeTopics && excludeTopics && purpose && keywords.length > 0)
+    return Boolean(purpose)
 }
 
 /**

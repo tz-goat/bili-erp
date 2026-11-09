@@ -6,14 +6,14 @@
 
 > 这个关键收藏夹，究竟是“用来装什么”的？
 
-它的职责不是保存一段随手备注，而是把后续 `归位建议` 真正需要的语义落下来。
+它的职责不是保存一段随手备注，而是先给系统一个最小可用的语义锚点。
 
-这份说明至少要能回答：
+一期初始化阶段先只要求用户回答：
 
-- 主要放什么
-- 明确不放什么
-- 典型关键词或主题
-- 收藏夹用途
+- 这个收藏夹主要是用来干什么的
+
+更细的结构化字段（主要放什么 / 不放什么 / 关键词）仍保留在模型里，
+后续计划交给 Agent 基于收藏夹样本自动草拟，再由用户微调确认。
 
 ## 2. 调用形态
 
@@ -30,29 +30,29 @@ PUT /api/folder-profiles/:folderId
 
 ### Path
 
-| 字段       | 必填 | 说明                         |
-| ---------- | ---- | ---------------------------- |
-| `folderId` | 是   | 要写入说明的关键收藏夹 id    |
+| 字段       | 必填 | 说明                      |
+| ---------- | ---- | ------------------------- |
+| `folderId` | 是   | 要写入说明的关键收藏夹 id |
 
 ### Body
 
 ```json
 {
-  "includeTopics": "React, TypeScript, 工程化",
-  "excludeTopics": "产品访谈, 游戏解说",
-  "keywords": ["react", "typescript", "eslint"],
   "purpose": "收集前端工程实践与工具链资料",
-  "notes": "优先保留能指导实际开发的内容"
+  "includeTopics": "",
+  "excludeTopics": "",
+  "keywords": [],
+  "notes": ""
 }
 ```
 
-| 字段            | 必填 | 说明                               |
-| --------------- | ---- | ---------------------------------- |
-| `includeTopics` | 是   | 主要放什么                         |
-| `excludeTopics` | 否   | 明确不放什么                       |
-| `keywords`      | 是   | 典型关键词或主题                   |
-| `purpose`       | 是   | 收藏夹用途                         |
-| `notes`         | 否   | 补充说明，不参与“是否完成”判定     |
+| 字段            | 必填 | 说明                                 |
+| --------------- | ---- | ------------------------------------ |
+| `purpose`       | 是   | 收藏夹用途 / 一句话说明              |
+| `includeTopics` | 否   | 结构化扩展字段，一期初始化阶段可为空 |
+| `excludeTopics` | 否   | 结构化扩展字段，一期初始化阶段可为空 |
+| `keywords`      | 否   | 结构化扩展字段，一期初始化阶段可为空 |
+| `notes`         | 否   | 补充说明，一期初始化阶段可为空       |
 
 ## 4. 草稿与完成态
 
@@ -62,10 +62,7 @@ PUT /api/folder-profiles/:folderId
 
 满足以下条件时，`profileCompleted = true`：
 
-1. `includeTopics.trim()` 非空
-2. `excludeTopics.trim()` 非空
-3. `keywords.length > 0`
-4. `purpose.trim()` 非空
+1. `purpose.trim()` 非空
 
 否则视为草稿，`profileCompleted = false`。
 
@@ -77,7 +74,7 @@ PUT /api/folder-profiles/:folderId
 - `suggest-item-target` 的候选资格判断
 - 初始化流程的下一步引导
 
-如果把这条规则散在前端，就很容易出现“页面觉得完成了，但建议模块不认”的分叉。
+如果把这条规则散在前端，就很容易出现“页面觉得完成了，但工作区或建议模块不认”的分叉。
 
 ## 5. 输出
 
@@ -87,11 +84,11 @@ PUT /api/folder-profiles/:folderId
 {
   "folderId": "folder_3140076935",
   "profile": {
-    "includeTopics": "React, TypeScript, 工程化",
-    "excludeTopics": "产品访谈, 游戏解说",
-    "keywords": ["react", "typescript", "eslint"],
     "purpose": "收集前端工程实践与工具链资料",
-    "notes": "优先保留能指导实际开发的内容",
+    "includeTopics": "",
+    "excludeTopics": "",
+    "keywords": [],
+    "notes": "",
     "profileCompleted": true,
     "completedAt": "2026-11-02 16:40:00",
     "updatedAt": "2026-11-02 16:40:00"
@@ -199,9 +196,9 @@ AND completedAt != null
 ## 10. 一期范围内的刻意简化
 
 1. 不保留 profile 历史版本
-2. 不做字段级 AI 补全
+2. 一期初始化只要求 `purpose`，不强制用户手填全部结构化字段
 3. 不支持附件、模板或富文本
-4. `notes` 只做补充文本，不参与建议主规则
+4. 结构化字段的自动补全预留给后续 Agent，当前不在接口层直接实现
 
 这保证一期的 `收藏夹说明` 仍然是轻量、可维护、可结构化利用的。
 
@@ -216,12 +213,12 @@ AND completedAt != null
 
 ## 12. 实现落点
 
-| 内容         | 位置                                        |
-| ------------ | ------------------------------------------- |
-| 契约与默认值 | `apps/server/src/domain/folder-profile.js`  |
+| 内容         | 位置                                                 |
+| ------------ | ---------------------------------------------------- |
+| 契约与默认值 | `apps/server/src/domain/folder-profile.js`           |
 | 用例编排     | `apps/server/src/application/save-folder-profile.js` |
-| DB 读写      | `apps/server/src/adapters/db/*`             |
-| HTTP 路由    | `apps/server/src/routes/*`                  |
+| DB 读写      | `apps/server/src/adapters/db/*`                      |
+| HTTP 路由    | `apps/server/src/routes/*`                           |
 
 ## 13. 一期实现口径
 
@@ -231,5 +228,4 @@ AND completedAt != null
 - **校验顺序**：收藏夹不存在（404）→ payload 不合法（400）→ 不是关键收藏夹（409）
 - **`completed_at` 落库为 ISO**：库里存 ISO（UTC），接口返回本地时间 `YYYY-MM-DD HH:mm:ss`
 - **`created_at` 不在 upsert 时覆盖**：只刷新内容与 `updated_at`，保住「首次录入」时间
-- **`completedAt` 与 `profileCompleted` 都由服务端算**：请求里传这两个字段会被忽略
-
+- **`completedAt` 与 `profileCompleted` 都由服务端算**：当前完成态只看 `purpose` 是否非空；请求里传这两个字段会被忽略
