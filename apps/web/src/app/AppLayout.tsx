@@ -1,5 +1,7 @@
 import { Layout, Typography } from 'antd'
 
+import { InitializationEntry } from '../features/initialization/InitializationEntry'
+import { useInitializationGate } from '../features/initialization/useInitializationGate'
 import { WorkspacePage } from '../features/workspace/WorkspacePage'
 
 const { Header, Content } = Layout
@@ -12,10 +14,12 @@ const contentStyle = { overflow: 'hidden' }
 
 /**
  * 应用外壳：顶部标题 + 内容区。
- * 双栏结构属于 `工作区` 页面自身（见 workspace/WorkspacePage），外壳不再替它预设 Sider，
- * 这样将来工作台、目录页等其它页面可以各自决定布局。
+ * 首页先走初始化入口裁判：从冷启动导入、关键收藏夹、说明录入一路串到工作区，
+ * 这样首次使用与日常整理共用同一个壳，但状态分流仍只收口在这一层。
  */
 export function AppLayout() {
+    const gate = useInitializationGate()
+
     return (
         <Layout style={shellStyle}>
             <Header style={headerStyle}>
@@ -24,7 +28,7 @@ export function AppLayout() {
                 </Typography.Title>
             </Header>
             <Content style={contentStyle}>
-                <WorkspacePage />
+                {gate.phase === 'workspace' ? <WorkspacePage /> : <InitializationEntry gate={gate} />}
             </Content>
         </Layout>
     )

@@ -139,3 +139,32 @@ export type SaveFolderProfileResult = {
     folderId: string
     profile: FolderProfileInput & { profileCompleted: boolean; completedAt: string | null; updatedAt: string | null }
 }
+
+/** 导入状态与后端 import_runs 保持一致，前端只按这个枚举分流入口。 */
+export type ImportStatus = 'running' | 'completed' | 'failed'
+
+/** 启动导入后立即返回的摘要，前端据此进入轮询。 */
+export type ImportRunSummary = {
+    runId: string
+    sourceMid: string | null
+    status: ImportStatus
+    startedAt: string | null
+}
+
+/**
+ * 最近一次导入的最小可渲染结果。
+ * 1.10 冷启动判定只关心「有没有导入记录」和「最近一次导入是否可用」，
+ * 所以直接复用 run 资源，不再额外造一份初始化状态接口。
+ */
+export type ImportRunDetail = {
+    runId: string
+    sourceMid: string
+    status: ImportStatus
+    startedAt: string | null
+    finishedAt: string | null
+    folderCount: number
+    itemCount: number
+    watchLaterItemCount: number | null
+    warning: { failedFolderCount: number; message: string } | null
+    errorMessage?: string | null
+}
