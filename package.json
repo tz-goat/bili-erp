@@ -5,8 +5,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"pnpm --filter @pl-dashboard/server dev\" \"pnpm web\"",
     "server": "pnpm --filter @pl-dashboard/server start",
     "web": "pnpm --filter @pl-dashboard/web dev",
+    "ports": "lsof -nP -iTCP:3001 -iTCP:5173 -iTCP:5174 -sTCP:LISTEN || echo 'no listeners on 3001/5173/5174'",
+    "ports:kill": "lsof -ti:3001,5173,5174 | xargs -r kill",
     "web:build": "pnpm --filter @pl-dashboard/web build",
     "lint": "pnpm --filter @pl-dashboard/web lint",
     "lint:fix": "pnpm --filter @pl-dashboard/web lint:fix",
@@ -19,5 +22,8 @@
       "version": "^11.5.2",
       "onFail": "download"
     }
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
   }
 }

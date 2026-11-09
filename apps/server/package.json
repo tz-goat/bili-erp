@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/http/start-server.js"
+    "start": "node src/http/start-server.js",
+    "dev": "node --watch src/http/start-server.js"
   },
   "dependencies": {
     "ejs": "^7.0.2",
