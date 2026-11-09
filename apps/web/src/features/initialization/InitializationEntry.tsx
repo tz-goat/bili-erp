@@ -17,7 +17,6 @@ const profileLayoutStyle = {
     gap: 16,
     alignItems: 'start'
 }
-const metaStyle = { display: 'flex', flexWrap: 'wrap' as const, gap: 8, marginTop: 8 }
 const emptyProfile: FolderProfileInput = { includeTopics: '', excludeTopics: '', keywords: [], purpose: '', notes: '' }
 
 /**
@@ -229,15 +228,14 @@ function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
                                 items={gate.keyFolderItems.map((item) => ({
                                     key: item.id,
                                     label: (
-                                        <div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
                                             <div>{item.title}</div>
-                                            <div style={metaStyle}>
+                                            <div>
                                                 {item.profileCompleted ? (
                                                     <Tag color="green">已完成</Tag>
                                                 ) : (
                                                     <Tag color="gold">待填写</Tag>
                                                 )}
-                                                <Typography.Text type="secondary">{item.itemCount} 条</Typography.Text>
                                             </div>
                                         </div>
                                     )
