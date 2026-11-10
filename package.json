@@ -11,6 +11,7 @@
     "ports": "lsof -nP -iTCP:3001 -iTCP:5173 -iTCP:5174 -sTCP:LISTEN || echo 'no listeners on 3001/5173/5174'",
     "ports:kill": "lsof -ti:3001,5173,5174 | xargs -r kill",
     "web:build": "pnpm --filter @pl-dashboard/web build",
+    "test": "pnpm --filter @pl-dashboard/server test",
     "lint": "pnpm --filter @pl-dashboard/web lint",
     "lint:fix": "pnpm --filter @pl-dashboard/web lint:fix",
     "format": "pnpm --filter @pl-dashboard/web format",
