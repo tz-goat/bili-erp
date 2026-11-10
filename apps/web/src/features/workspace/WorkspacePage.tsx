@@ -36,7 +36,8 @@ export function WorkspacePage() {
                 />
             </Sider>
             <Content style={contentStyle}>
-                <WorkspaceDetail container={selectedContainer} />
+                {/* 用容器 id 做 key：切容器时重挂载右栏，分页与明细状态一并回到该容器的初始态 */}
+                <WorkspaceDetail key={selectedContainerId ?? 'none'} container={selectedContainer} />
             </Content>
         </Layout>
     )
