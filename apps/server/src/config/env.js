@@ -12,7 +12,12 @@ function resolveProjectRoot() {
  */
 export const PROJECT_ROOT = resolveProjectRoot()
 export const DATA_DIRECTORY = path.join(PROJECT_ROOT, 'data')
+// 前端构建产物的固定位置：生产模式下由 Express 直接托管，实现前后端同源。
+export const WEB_DIST_DIRECTORY = path.join(PROJECT_ROOT, 'apps/web/dist')
 export const SERVER_PORT = Number(process.env.SERVER_PORT) || 3001
+// 单用户访问闸门：只设密码即可启用，用户名默认 admin；两者都不设则视为本地开发放行。
+export const AUTH_USER = process.env.AUTH_USER?.trim() || 'admin'
+export const AUTH_PASSWORD = process.env.AUTH_PASSWORD?.trim() || ''
 export const DEFAULT_BILI_MID = process.env.BILI_MID?.trim() || '39640918'
 export const SQLITE_DATABASE_PATH = process.env.SQLITE_DATABASE_PATH?.trim() || path.join(DATA_DIRECTORY, 'pl-dashboard.sqlite')
 export const IMPORT_PAGE_SIZE = parsePositiveInteger(process.env.IMPORT_PAGE_SIZE, 40)
