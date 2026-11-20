@@ -10,6 +10,9 @@ node_modules/
 dist/
 build/
 
+# 本地实验输出（AB 脚本等）
+tmp/
+
 # 日志
 *.log
 pnpm-debug.log*
