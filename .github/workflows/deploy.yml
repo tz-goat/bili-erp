@@ -1,0 +1,33 @@
+# master 合并后 SSH 进生产机跑 scripts/deploy.sh（pm2 + SQLite 单实例）。
+name: Deploy production
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            # 先对齐 master，保证本机已有最新 scripts/deploy.sh（首挂 workflow 时必要）
+            git fetch --prune origin
+            git checkout master
+            git reset --hard origin/master
+            bash scripts/deploy.sh

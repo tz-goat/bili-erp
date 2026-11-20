@@ -95,7 +95,7 @@ export function FolderProfileEditModal({
                 >
                     <Input.TextArea rows={2} placeholder="例如：放前端工程与构建相关的长视频" />
                 </Form.Item>
-                <Form.Item label=" " colon={false}>
+                <Form.Item colon={false}>
                     <Button
                         loading={drafting}
                         disabled={saving}
@@ -148,7 +148,7 @@ export function FolderProfileEditModal({
                         tokenSeparators={[',', '，', '、']}
                         placeholder="输入后回车添加"
                         // 词条多时选择器会无限长高，压住弹窗；固定高度内部滚动
-                        styles={{ root: { maxHeight: 120, overflowY: 'auto' } }}
+                        styles={{ root: { maxHeight: 90, overflowY: 'auto' } }}
                     />
                 </Form.Item>
                 <Form.Item name="excludeTopics" label="排除主题" extra="命中任一排除词则整夹不作为候选。">
