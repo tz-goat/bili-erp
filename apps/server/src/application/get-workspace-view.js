@@ -15,6 +15,8 @@ import {
 const SORT_COLUMNS = {
     fav_time: 'sfi.source_fav_time',
     publish_time: 'i.publish_time',
+    // 时长必须按数值列排，前端展示的 durationLabel 是 MM:SS 文本，排序结果会错
+    duration: 'i.duration_seconds',
     title: 'i.title'
 }
 

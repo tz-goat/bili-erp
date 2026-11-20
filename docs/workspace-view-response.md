@@ -236,5 +236,5 @@ sortOrder=desc
 - **时间字段是展示格式**：库里存 ISO（UTC），接口返回本地时间的 `YYYY-MM-DD HH:mm:ss`；空值或非法时间统一返回 `null`
 - **`stats` 是容器级**：不受 `keyword` 影响。用户看的是这个收藏夹整体有多少待处理，而不是「当前这 20 条里有多少待处理」
 - **建议摘要按 item 级取最新分组**：不按 `context_folder_id` 过滤，保证同一个收藏项在不同容器下看到同一份最新建议
-- **排序白名单**：`sortBy` 只支持 `fav_time` / `publish_time` / `title`，非法值连同 `page` / `pageSize` / `sortOrder` 一起回落默认值，避免脏参数进 SQL
+- **排序白名单**：`sortBy` 只支持 `fav_time` / `publish_time` / `duration` / `title`（`duration` 落在 `i.duration_seconds` 数值列上，不能用展示用的 `MM:SS` 文本排序），非法值连同 `page` / `pageSize` / `sortOrder` 一起回落默认值，避免脏参数进 SQL
 - **`watchLater` 恒为 `null` 占位**：`folder` 容器下这组字段没有业务含义，等稍后再看池接通再填

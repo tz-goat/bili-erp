@@ -1,5 +1,5 @@
 import { request } from './client'
-import type { WorkspaceSidebar, WorkspaceView } from './types'
+import type { WorkspaceSidebar, WorkspaceSortBy, WorkspaceSortOrder, WorkspaceView } from './types'
 
 /** 左栏导航的唯一数据源。 */
 export function fetchWorkspaceSidebar() {
@@ -10,8 +10,8 @@ export type WorkspaceViewQuery = {
     page?: number
     pageSize?: number
     keyword?: string
-    sortBy?: string
-    sortOrder?: 'asc' | 'desc'
+    sortBy?: WorkspaceSortBy
+    sortOrder?: WorkspaceSortOrder
 }
 
 /**

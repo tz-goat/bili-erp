@@ -65,12 +65,17 @@ export type WorkspaceStats = {
     activeSourceCount: number
 }
 
+/** 排序白名单，与后端 get-workspace-view.js 的 SORT_COLUMNS 一一对应。 */
+export type WorkspaceSortBy = 'fav_time' | 'publish_time' | 'duration' | 'title'
+
+export type WorkspaceSortOrder = 'asc' | 'desc'
+
 export type WorkspaceFilters = {
     page: number
     pageSize: number
     keyword: string
-    sortBy: string
-    sortOrder: string
+    sortBy: WorkspaceSortBy
+    sortOrder: WorkspaceSortOrder
 }
 
 export type Pagination = {

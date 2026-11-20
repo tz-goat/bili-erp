@@ -92,6 +92,7 @@
 | 2.4 | `POST /api/items/:itemId/suggestions` 按需生成建议     | 已定 | 完成   | 未开始 |
 | 2.5 | `PUT /api/items/:itemId/decision/*` 确认 / 暂不处理    | 已定 | 未开始 | 未开始 |
 | 2.6 | `PUT /api/watch-later/:itemId/*` 单条转存              | 已定 | 未开始 | 未开始 |
+| 2.7 | 收藏项表格服务端排序（时长 / 发布时间 / 收藏时间）     | 已定 | 完成   | 完成   |
 
 ## 5. 迭代 3：归位建议闭环与稳定性打磨
 
@@ -126,6 +127,8 @@
 - **上游限流即中止**：`resource/list` 出现 `412`/`429` 时整轮导入直接 `failed`，剩余收藏夹短路不再发请求，避免在已被限流的端点上继续加压
 - **右栏 view 的实现口径**：一期只支持 `folder` 容器；时间字段返回本地时间 `YYYY-MM-DD HH:mm:ss`；`stats` 是容器级不随 `keyword` 变化；建议摘要按 item 级取最新分组
 - **容器级统计呈现口径**：2.3 把 `stats` 在右栏头部单独渲染成一行紧凑统计（收藏项 / 待确认 / 已确认 / 暂不处理 / 已生成建议），并取代此前头部与之重复的两个计数 Tag，保证同一数字只有一个来源
+- **右栏排序口径**：`SORT_COLUMNS` 白名单为 `fav_time` / `publish_time` / `duration` / `title`；三列排序全部走服务端（列头只声明 `sorter: true` + 受控 `sortOrder`，不给比较函数，否则只排当前页且时长按 `MM:SS` 文本比较不是数值序）；点掉排序（antd 第三态）回落 `fav_time desc`，换排序时页码回到第一页
+- **右栏查询一致性口径**：`useWorkspaceView` 用 `page|sortBy|sortOrder` 拼成 `queryKey` 判断「是否已追上当前查询」。只比 `page` 会在仅改排序时误判为已追上，返回旧顺序数据且 `loading = false`
 - **前端工程形态**：pnpm workspace（`apps/*`），根目录统一 `pnpm install` 与 lockfile；`apps/web` 用 Vite + React 19 + antd 6 + TypeScript（strict），开发期 `/api` 由 Vite proxy 透传到 `localhost:3001`，前端一律写相对路径以避开 CORS
 - **工作区选中态口径**：默认选中用 `pickedContainerId ?? sidebar.defaultContainerId` 在渲染期收口，不用 `useEffect` 回写默认值——避免用户已点选后被 effect 覆盖的竞态；1.16 右栏只渲染容器头部与占位，不提前请求 `container view`
 - **冷启动判定口径**：直接复用 `GET /api/imports/latest`；`404` 视为从未导入过，其余状态都视为已有导入记录，不额外新增初始化状态接口；1.17 已按此把首页串成「导入 → 关键收藏夹 → 收藏夹说明 → 工作区」
