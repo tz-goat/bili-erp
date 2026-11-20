@@ -35,6 +35,13 @@ export const IMPORT_PAGE_DELAY_MAX_MS = parseNonNegativeInteger(process.env.IMPO
 export const IMPORT_RETRY_MAX_ATTEMPTS = parseNonNegativeInteger(process.env.IMPORT_RETRY_MAX_ATTEMPTS, 1)
 export const IMPORT_RETRY_BASE_DELAY_MS = parseNonNegativeInteger(process.env.IMPORT_RETRY_BASE_DELAY_MS, 2000)
 
+/** DeepSeek / OpenAI 兼容接口；默认走 DeepSeek，密钥复用 OPENAI_API_KEY。 */
+export const LLM_API_KEY = process.env.OPENAI_API_KEY?.trim() || ''
+export const LLM_BASE_URL = (process.env.OPENAI_BASE_URL?.trim() || 'https://api.deepseek.com').replace(/\/$/, '')
+export const LLM_MODEL = process.env.OPENAI_MODEL?.trim() || 'deepseek-flash'
+export const PROFILE_DRAFT_SAMPLE_LIMIT = parsePositiveInteger(process.env.PROFILE_DRAFT_SAMPLE_LIMIT, 30)
+export const LLM_REQUEST_TIMEOUT_MS = parsePositiveInteger(process.env.LLM_REQUEST_TIMEOUT_MS, 60_000)
+
 /**
  * 当前项目先继续复用 Node 内置的 env 加载能力，不额外引入 dotenv。
  */
