@@ -9,6 +9,9 @@ export const KEY_FOLDERS_NOT_INITIALIZED = 'source_folders_not_initialized'
 /** 输入里包含不存在或不允许的 id 时，统一按参数错误返回。 */
 export const INVALID_KEY_FOLDER_IDS = 'invalid_folder_ids'
 
+/** 关键集合至少保留一个，空数组不再表示清空。 */
+export const KEY_FOLDERS_REQUIRED = 'key_folders_required'
+
 /**
  * 提交关键收藏夹时，总是按全集替换处理。
  * 这样最贴近初始化勾选场景，也能减少前端多次 toggle 的并发状态处理。

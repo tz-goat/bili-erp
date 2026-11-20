@@ -1,11 +1,12 @@
 import express from 'express'
 
 import { setKeyFolders } from '../application/set-key-folders.js'
-import { INVALID_KEY_FOLDER_IDS, KEY_FOLDERS_NOT_INITIALIZED } from '../domain/key-folders.js'
+import { INVALID_KEY_FOLDER_IDS, KEY_FOLDERS_NOT_INITIALIZED, KEY_FOLDERS_REQUIRED } from '../domain/key-folders.js'
 
-/** 非法 id 属于参数错误，未初始化属于业务冲突，两者状态码要分开。 */
+/** 非法 id / 空集合属于参数错误，未初始化属于业务冲突。 */
 const ERROR_STATUS = {
     [INVALID_KEY_FOLDER_IDS]: 400,
+    [KEY_FOLDERS_REQUIRED]: 400,
     [KEY_FOLDERS_NOT_INITIALIZED]: 409
 }
 

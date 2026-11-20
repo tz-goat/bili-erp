@@ -45,7 +45,7 @@ POST /api/key-folders
 
 ### 输入规则
 
-1. `folderIds` 允许为空数组，表示清空当前关键收藏夹集合
+1. `folderIds` 不能为空数组。至少保留一个关键收藏夹，空集合返回 `key_folders_required`
 2. `folderIds` 中的 id 必须都存在于 `source_folders`
 3. `folderIds` 只能是普通收藏夹 id，不能传 `watch_later`
 4. 重复 id 在服务端去重处理
@@ -146,6 +146,18 @@ folder_profiles  -> 这个收藏夹已有过哪些说明内容
 ```
 
 这类错误说明输入本身不合法，不属于业务冲突。
+
+### 8.1.1 空集合
+
+返回 `400 Bad Request`：
+
+```json
+{
+  "error": "key_folders_required"
+}
+```
+
+工作区取消关键时不能把集合减到 0。已有说明仍留在 `folder_profiles`，只是这次请求不会落库。
 
 ### 8.2 本地库还没有来源数据
 

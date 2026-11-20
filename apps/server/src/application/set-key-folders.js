@@ -5,7 +5,8 @@ import { formatDateTime } from './format-datetime.js'
 import {
     createInvalidKeyFolderIdsError,
     createSetKeyFoldersResult,
-    KEY_FOLDERS_NOT_INITIALIZED
+    KEY_FOLDERS_NOT_INITIALIZED,
+    KEY_FOLDERS_REQUIRED
 } from '../domain/key-folders.js'
 
 /**
@@ -30,6 +31,10 @@ export async function setKeyFolders({ folderIds, mid = DEFAULT_BILI_MID } = {}) 
     const { normalizedIds, invalidIds } = normalizeFolderIds(folderIds)
     if (invalidIds.length > 0) {
         return createInvalidKeyFolderIdsError(invalidIds)
+    }
+
+    if (normalizedIds.length === 0) {
+        return { error: KEY_FOLDERS_REQUIRED }
     }
 
     // 只查这批 id 是否真的存在于来源表；watch_later 这类虚拟 id 会自然查不到而被拦下。
