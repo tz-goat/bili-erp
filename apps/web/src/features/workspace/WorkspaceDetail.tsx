@@ -47,13 +47,11 @@ const introStyle: CSSProperties = {
 
 type SortOrder = 'ascend' | 'descend' | null
 
+/** null = 无排序态（列头无箭头），与 antd 第三态「取消排序」一致；请求仍可不带 sort，由后端回落默认序。 */
 type SortState = {
     sortBy: WorkspaceSortBy
     sortOrder: WorkspaceSortOrder
-}
-
-/** 默认排序与后端 DEFAULT_WORKSPACE_FILTERS 保持一致，让「收藏时间」列默认就带降序箭头（两处需同时改）。 */
-const DEFAULT_SORT: SortState = { sortBy: 'fav_time', sortOrder: 'desc' }
+} | null
 
 /** 可排序列的 key → 后端排序白名单值；不在表里的列不参与服务端排序。 */
 const SORT_BY_COLUMN_KEY: Record<string, WorkspaceSortBy> = {
@@ -84,13 +82,22 @@ type ColumnActions = {
  * 列对齐旧原型 folder_detail.ejs，去掉本地库未存的三方计数（播放 / 收藏 / 弹幕）。
  * 三列排序一律走服务端：这里只声明 sorter: true 并受控 sortOrder，
  * 不给比较函数——那只会排当前这一页，且时长按 MM:SS 文本比较也不是数值序。
+ * 关键收藏夹是归位目标，不在本夹内做整理操作，故隐藏整理状态 / 建议摘要 / 操作。
  */
-function createColumns(sort: SortState, actions: ColumnActions): TableProps<WorkspaceViewItem>['columns'] {
+function createColumns(
+    sort: SortState,
+    actions: ColumnActions,
+    options: { showOrganizeColumns: boolean }
+): TableProps<WorkspaceViewItem>['columns'] {
     const resolveSortOrder = (key: WorkspaceSortBy): SortOrder => {
-        return sort.sortBy === key ? (sort.sortOrder === 'asc' ? 'ascend' : 'descend') : null
+        if (!sort || sort.sortBy !== key) {
+            return null
+        }
+
+        return sort.sortOrder === 'asc' ? 'ascend' : 'descend'
     }
 
-    return [
+    const columns: TableProps<WorkspaceViewItem>['columns'] = [
         {
             title: '标题',
             dataIndex: 'title',
@@ -143,7 +150,15 @@ function createColumns(sort: SortState, actions: ColumnActions): TableProps<Work
                     {intro || '-'}
                 </span>
             )
-        },
+        }
+    ]
+
+    if (!options.showOrganizeColumns) {
+        return columns
+    }
+
+    return [
+        ...columns,
         {
             title: '整理状态',
             key: 'decision',
@@ -222,7 +237,7 @@ type WorkspaceDetailProps = {
  */
 export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: WorkspaceDetailProps) {
     const [page, setPage] = useState(1)
-    const [sort, setSort] = useState<SortState>(DEFAULT_SORT)
+    const [sort, setSort] = useState<SortState>(null)
     const [profileOpen, setProfileOpen] = useState(false)
     const [marking, setMarking] = useState(false)
     const [busyItemId, setBusyItemId] = useState<string | null>(null)
@@ -234,8 +249,8 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
 
     const { view, loading, error, reload } = useWorkspaceView(container?.id ?? null, {
         page,
-        sortBy: sort.sortBy,
-        sortOrder: sort.sortOrder
+        sortBy: sort?.sortBy,
+        sortOrder: sort?.sortOrder
     })
 
     if (!container) {
@@ -254,8 +269,9 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
         const activeSorter = Array.isArray(sorter) ? sorter[0] : sorter
         const nextSortBy = SORT_BY_COLUMN_KEY[String(activeSorter?.columnKey)]
 
-        if (!activeSorter?.order || !nextSortBy) {
-            setSort(DEFAULT_SORT)
+        // 与 antd 一致：升序 → 降序 → 取消（无状态）。取消时不回落成默认倒序箭头。
+        if (!nextSortBy || !activeSorter?.order) {
+            setSort(null)
         } else {
             setSort({ sortBy: nextSortBy, sortOrder: activeSorter.order === 'ascend' ? 'asc' : 'desc' })
         }
@@ -424,11 +440,15 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
                             rowKey="id"
                             size="small"
                             loading={loading}
-                            columns={createColumns(sort, {
-                                busyItemId,
-                                onGenerate: handleGenerate,
-                                onDefer: handleDefer
-                            })}
+                            columns={createColumns(
+                                sort,
+                                {
+                                    busyItemId,
+                                    onGenerate: handleGenerate,
+                                    onDefer: handleDefer
+                                },
+                                { showOrganizeColumns: !isKeyFolder }
+                            )}
                             dataSource={view?.list.items ?? []}
                             pagination={false}
                             scroll={{ x: 'max-content' }}

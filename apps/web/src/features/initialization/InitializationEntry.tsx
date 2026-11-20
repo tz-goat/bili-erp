@@ -346,7 +346,12 @@ function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
                                         <Input.TextArea rows={2} placeholder="逗号分隔，参与标题/简介匹配" />
                                     </Form.Item>
                                     <Form.Item name="keywords" label="关键词">
-                                        <Select mode="tags" tokenSeparators={[',', '，', '、']} placeholder="回车添加词条" />
+                                        <Select
+                                            mode="tags"
+                                            tokenSeparators={[',', '，', '、']}
+                                            placeholder="回车添加词条"
+                                            styles={{ root: { maxHeight: 120, overflowY: 'auto' } }}
+                                        />
                                     </Form.Item>
                                     <Form.Item name="excludeTopics" label="排除主题">
                                         <Input.TextArea rows={2} placeholder="命中则不作为候选" />

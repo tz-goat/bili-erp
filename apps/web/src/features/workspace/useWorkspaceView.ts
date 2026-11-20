@@ -6,8 +6,9 @@ import type { WorkspaceSortBy, WorkspaceSortOrder, WorkspaceView } from '../../a
 /** 右栏列表的查询条件：翻页与排序共用一份，任一变化都算「换了一次查询」。 */
 export type WorkspaceViewQuery = {
     page: number
-    sortBy: WorkspaceSortBy
-    sortOrder: WorkspaceSortOrder
+    /** 未指定时不带 query，后端回落默认序；UI 表现为「无排序态」。 */
+    sortBy?: WorkspaceSortBy
+    sortOrder?: WorkspaceSortOrder
 }
 
 type WorkspaceViewState = {
@@ -38,7 +39,7 @@ export function useWorkspaceView(containerId: string | null, query: WorkspaceVie
     const [settled, setSettled] = useState<SettledView | null>(null)
     const [refreshNonce, setRefreshNonce] = useState(0)
     const { page, sortBy, sortOrder } = query
-    const queryKey = `${page}|${sortBy}|${sortOrder}`
+    const queryKey = `${page}|${sortBy ?? ''}|${sortOrder ?? ''}`
     const reload = () => setRefreshNonce((value) => value + 1)
 
     useEffect(() => {
@@ -49,7 +50,10 @@ export function useWorkspaceView(containerId: string | null, query: WorkspaceVie
         // 快速切容器 / 连续翻页 / 连点排序会打出多个请求，用 cancelled 丢弃过期响应，避免旧结果覆盖新查询
         let cancelled = false
 
-        fetchWorkspaceView(containerId, { page, sortBy, sortOrder })
+        fetchWorkspaceView(containerId, {
+            page,
+            ...(sortBy && sortOrder ? { sortBy, sortOrder } : {})
+        })
             .then((view) => {
                 if (!cancelled) {
                     setSettled({ containerId, queryKey, view, error: null })

@@ -128,7 +128,7 @@
 - **上游限流即中止**：`resource/list` 出现 `412`/`429` 时整轮导入直接 `failed`，剩余收藏夹短路不再发请求，避免在已被限流的端点上继续加压
 - **右栏 view 的实现口径**：一期只支持 `folder` 容器；时间字段返回本地时间 `YYYY-MM-DD HH:mm:ss`；`stats` 是容器级不随 `keyword` 变化；建议摘要按 item 级取最新分组
 - **容器级统计呈现口径**：2.3 把 `stats` 在右栏头部单独渲染成一行紧凑统计（收藏项 / 待确认 / 已确认 / 暂不处理 / 已生成建议），并取代此前头部与之重复的两个计数 Tag，保证同一数字只有一个来源
-- **右栏排序口径**：`SORT_COLUMNS` 白名单为 `fav_time` / `publish_time` / `duration` / `title`；三列排序全部走服务端（列头只声明 `sorter: true` + 受控 `sortOrder`，不给比较函数，否则只排当前页且时长按 `MM:SS` 文本比较不是数值序）；点掉排序（antd 第三态）回落 `fav_time desc`，换排序时页码回到第一页
+- **右栏排序口径**：`SORT_COLUMNS` 白名单为 `fav_time` / `publish_time` / `duration` / `title`；三列排序全部走服务端（列头只声明 `sorter: true` + 受控 `sortOrder`，不给比较函数，否则只排当前页且时长按 `MM:SS` 文本比较不是数值序）；初始与「取消排序」均为 UI 无状态（列头无箭头），请求不带 sort 参数、由后端回落 `fav_time desc`；换排序时页码回到第一页
 - **右栏查询一致性口径**：`useWorkspaceView` 用 `page|sortBy|sortOrder` 拼成 `queryKey` 判断「是否已追上当前查询」。只比 `page` 会在仅改排序时误判为已追上，返回旧顺序数据且 `loading = false`
 - **左栏搜索口径**：纯前端标题过滤（大小写不敏感），不给 `GET /api/workspace/sidebar` 加 query 参数，因此与 [workspace-sidebar-contract.md](file:///Users/dateng/pl-dashboard-2610/docs/workspace-sidebar-contract.md) §2「左栏不承担搜索」不冲突；搜索时隐藏过滤后为空的分区，全空则显示空态；被过滤掉的当前选中项不自动切换
 - **词表编辑口径**：初始化仍只强制 `purpose`；匹配词表（`includeTopics` / `keywords` / `excludeTopics`）在工作区关键收藏夹的「编辑说明」里补，走既有 `PUT /api/folder-profiles/:folderId` 整份覆盖；`notes` 一期不暴露编辑，提交时原样带回以免抹掉

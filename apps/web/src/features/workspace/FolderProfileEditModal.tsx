@@ -143,7 +143,13 @@ export function FolderProfileEditModal({
                     <Input.TextArea rows={2} placeholder="例如：前端, 工程化, TypeScript" />
                 </Form.Item>
                 <Form.Item name="keywords" label="关键词" extra="结构化词条，与纳入主题合并成同一套命中词表。">
-                    <Select mode="tags" tokenSeparators={[',', '，', '、']} placeholder="输入后回车添加" />
+                    <Select
+                        mode="tags"
+                        tokenSeparators={[',', '，', '、']}
+                        placeholder="输入后回车添加"
+                        // 词条多时选择器会无限长高，压住弹窗；固定高度内部滚动
+                        styles={{ root: { maxHeight: 120, overflowY: 'auto' } }}
+                    />
                 </Form.Item>
                 <Form.Item name="excludeTopics" label="排除主题" extra="命中任一排除词则整夹不作为候选。">
                     <Input.TextArea rows={2} placeholder="例如：游戏, 杂谈" />
