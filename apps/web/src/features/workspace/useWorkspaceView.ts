@@ -14,6 +14,8 @@ type WorkspaceViewState = {
     view: WorkspaceView | null
     loading: boolean
     error: string | null
+    /** 强制按当前 query 再拉一次，用于说明保存 / 建议确认后的回显。 */
+    reload: () => void
 }
 
 /** 已落地的请求结果，连同它归属的容器与查询条件。 */
@@ -34,8 +36,10 @@ type SettledView = {
  */
 export function useWorkspaceView(containerId: string | null, query: WorkspaceViewQuery): WorkspaceViewState {
     const [settled, setSettled] = useState<SettledView | null>(null)
+    const [refreshNonce, setRefreshNonce] = useState(0)
     const { page, sortBy, sortOrder } = query
     const queryKey = `${page}|${sortBy}|${sortOrder}`
+    const reload = () => setRefreshNonce((value) => value + 1)
 
     useEffect(() => {
         if (!containerId) {
@@ -65,21 +69,21 @@ export function useWorkspaceView(containerId: string | null, query: WorkspaceVie
         return () => {
             cancelled = true
         }
-    }, [containerId, page, sortBy, sortOrder, queryKey])
+    }, [containerId, page, sortBy, sortOrder, queryKey, refreshNonce])
 
     if (!containerId) {
-        return { view: null, loading: false, error: null }
+        return { view: null, loading: false, error: null, reload }
     }
 
     // 当前容器还没有任何落地结果（首次进入 / 刚切容器），给干净的空态而不是上一个容器的残留
     if (!settled || settled.containerId !== containerId) {
-        return { view: null, loading: true, error: null }
+        return { view: null, loading: true, error: null, reload }
     }
 
     // 同一容器换页或换排序：沿用上一份数据，只置 loading
     if (settled.queryKey !== queryKey) {
-        return { view: settled.view, loading: true, error: null }
+        return { view: settled.view, loading: true, error: null, reload }
     }
 
-    return { view: settled.view, loading: false, error: settled.error }
+    return { view: settled.view, loading: false, error: settled.error, reload }
 }

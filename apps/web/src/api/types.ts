@@ -145,6 +145,48 @@ export type SaveFolderProfileResult = {
     profile: FolderProfileInput & { profileCompleted: boolean; completedAt: string | null; updatedAt: string | null }
 }
 
+/** POST .../draft-structure：只返回草稿，不写库。 */
+export type FolderProfileDraftResult = {
+    folderId: string
+    draft: Pick<FolderProfileInput, 'includeTopics' | 'excludeTopics' | 'keywords'>
+    meta: { sampleCount: number; generatedBy: string }
+}
+
+/** POST /api/items/:itemId/suggestions 返回的单条候选。 */
+export type SuggestionCandidate = {
+    folderId: string
+    folderTitle: string
+    rank: number
+    reason: string
+    evidenceTags: string[]
+}
+
+export type SuggestionSkipReason = 'item_not_found' | 'no_profile_completed' | 'no_candidate_matched'
+
+/** 按需生成建议的完整结果；skipped 非空时 candidates 为空。 */
+export type SuggestionResult = {
+    itemId: string
+    suggestionGroupId: string | null
+    generatedAt: string | null
+    generatedBy: 'rules' | 'hybrid' | 'ai'
+    candidates: SuggestionCandidate[]
+    skipped: { reason: SuggestionSkipReason; message: string } | null
+}
+
+/** PUT .../decision/* 返回的当前决定快照。 */
+export type ItemDecisionResult = {
+    itemId: string
+    decision: {
+        status: DecisionStatus
+        chosenFolderId: string | null
+        chosenFolderTitle: string | null
+        sourceSuggestionGroupId: string | null
+        note: string
+        decidedAt: string | null
+        updatedAt: string | null
+    }
+}
+
 /** 导入状态与后端 import_runs 保持一致，前端只按这个枚举分流入口。 */
 export type ImportStatus = 'running' | 'completed' | 'failed'
 

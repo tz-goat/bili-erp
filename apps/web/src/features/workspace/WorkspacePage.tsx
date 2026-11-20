@@ -17,12 +17,14 @@ const contentStyle = { padding: 24, overflow: 'auto' }
  * 因此不需要用 effect 去「初始化默认值」，也就不会出现 effect 覆盖用户选择的竞态。
  */
 export function WorkspacePage() {
-    const { sidebar, loading, error } = useWorkspaceSidebar()
+    const { sidebar, loading, error, reload } = useWorkspaceSidebar()
     const [pickedContainerId, setPickedContainerId] = useState<string | null>(null)
 
     const selectedContainerId = pickedContainerId ?? sidebar?.defaultContainerId ?? null
     const containers = sidebar?.sections.flatMap((section) => section.items) ?? []
     const selectedContainer = containers.find((item) => item.id === selectedContainerId) ?? null
+    const keyFolderIds =
+        sidebar?.sections.find((section) => section.id === 'key_folders')?.items.map((item) => item.id) ?? []
 
     return (
         <Layout style={pageStyle}>
@@ -37,7 +39,12 @@ export function WorkspacePage() {
             </Sider>
             <Content style={contentStyle}>
                 {/* 用容器 id 做 key：切容器时重挂载右栏，分页与明细状态一并回到该容器的初始态 */}
-                <WorkspaceDetail key={selectedContainerId ?? 'none'} container={selectedContainer} />
+                <WorkspaceDetail
+                    key={selectedContainerId ?? 'none'}
+                    container={selectedContainer}
+                    keyFolderIds={keyFolderIds}
+                    onSidebarReload={reload}
+                />
             </Content>
         </Layout>
     )
