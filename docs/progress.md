@@ -93,6 +93,7 @@
 | 2.5 | `PUT /api/items/:itemId/decision/*` 确认 / 暂不处理    | 已定 | 未开始 | 未开始 |
 | 2.6 | `PUT /api/watch-later/:itemId/*` 单条转存              | 已定 | 未开始 | 未开始 |
 | 2.7 | 收藏项表格服务端排序（时长 / 发布时间 / 收藏时间）     | 已定 | 完成   | 完成   |
+| 2.8 | 左栏收藏夹搜索（纯前端标题过滤）                       | —    | —      | 完成   |
 
 ## 5. 迭代 3：归位建议闭环与稳定性打磨
 
@@ -129,6 +130,7 @@
 - **容器级统计呈现口径**：2.3 把 `stats` 在右栏头部单独渲染成一行紧凑统计（收藏项 / 待确认 / 已确认 / 暂不处理 / 已生成建议），并取代此前头部与之重复的两个计数 Tag，保证同一数字只有一个来源
 - **右栏排序口径**：`SORT_COLUMNS` 白名单为 `fav_time` / `publish_time` / `duration` / `title`；三列排序全部走服务端（列头只声明 `sorter: true` + 受控 `sortOrder`，不给比较函数，否则只排当前页且时长按 `MM:SS` 文本比较不是数值序）；点掉排序（antd 第三态）回落 `fav_time desc`，换排序时页码回到第一页
 - **右栏查询一致性口径**：`useWorkspaceView` 用 `page|sortBy|sortOrder` 拼成 `queryKey` 判断「是否已追上当前查询」。只比 `page` 会在仅改排序时误判为已追上，返回旧顺序数据且 `loading = false`
+- **左栏搜索口径**：纯前端标题过滤（大小写不敏感），不给 `GET /api/workspace/sidebar` 加 query 参数，因此与 [workspace-sidebar-contract.md](file:///Users/dateng/pl-dashboard-2610/docs/workspace-sidebar-contract.md) §2「左栏不承担搜索」不冲突；搜索时隐藏过滤后为空的分区，全空则显示空态；被过滤掉的当前选中项不自动切换
 - **前端工程形态**：pnpm workspace（`apps/*`），根目录统一 `pnpm install` 与 lockfile；`apps/web` 用 Vite + React 19 + antd 6 + TypeScript（strict），开发期 `/api` 由 Vite proxy 透传到 `localhost:3001`，前端一律写相对路径以避开 CORS
 - **工作区选中态口径**：默认选中用 `pickedContainerId ?? sidebar.defaultContainerId` 在渲染期收口，不用 `useEffect` 回写默认值——避免用户已点选后被 effect 覆盖的竞态；1.16 右栏只渲染容器头部与占位，不提前请求 `container view`
 - **冷启动判定口径**：直接复用 `GET /api/imports/latest`；`404` 视为从未导入过，其余状态都视为已有导入记录，不额外新增初始化状态接口；1.17 已按此把首页串成「导入 → 关键收藏夹 → 收藏夹说明 → 工作区」
