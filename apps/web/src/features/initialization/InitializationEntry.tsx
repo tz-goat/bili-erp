@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Checkbox, Form, Input, Menu, Result, Spin, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Checkbox, Form, Input, Menu, message, Result, Select, Spin, Tag, Typography } from 'antd'
 
-import { saveFolderProfile } from '../../api/folder-profiles'
+import { ApiError } from '../../api/client'
+import { draftFolderProfileStructure, saveFolderProfile } from '../../api/folder-profiles'
 import { fetchWorkspaceView } from '../../api/workspace'
 import type { FolderProfileInput } from '../../api/types'
 import type { InitializationGateState } from './useInitializationGate'
@@ -169,6 +170,7 @@ export function InitializationEntry({ gate }: { gate: InitializationGateState })
 function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
     const [form] = Form.useForm<FolderProfileInput>()
     const [savingProfile, setSavingProfile] = useState(false)
+    const [draftingProfile, setDraftingProfile] = useState(false)
     const [profileError, setProfileError] = useState<string | null>(null)
     const [loadedProfileFolderId, setLoadedProfileFolderId] = useState<string | null>(null)
 
@@ -217,8 +219,7 @@ function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
             <div style={stackStyle}>
                 <Card title="第 3 步：填写关键收藏夹用途">
                     <Typography.Paragraph>
-                        这里先补一句“这个收藏夹为什么存在”。当前只要求填 `用途/说明`，后续再由 Agent
-                        基于收藏夹样本自动补全更细的结构化字段，用户只需要微调。
+                        先写一句用途，再点「草拟词表」让 DeepSeek 根据夹内样本生成匹配结构；微调后保存即参与归位建议。
                     </Typography.Paragraph>
                     <div style={profileLayoutStyle}>
                         <div>
@@ -272,10 +273,10 @@ function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
 
                                         try {
                                             await saveFolderProfile(activeFolder.id, {
-                                                includeTopics: '',
-                                                excludeTopics: '',
-                                                keywords: [],
                                                 purpose: values.purpose.trim(),
+                                                includeTopics: (values.includeTopics ?? '').trim(),
+                                                excludeTopics: (values.excludeTopics ?? '').trim(),
+                                                keywords: values.keywords ?? [],
                                                 notes: ''
                                             })
                                             setLoadedProfileFolderId(null)
@@ -293,14 +294,66 @@ function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
                                         rules={[{ required: true, message: '请填写一句用途说明' }]}
                                     >
                                         <Input.TextArea
-                                            rows={4}
-                                            placeholder="例如：收藏前端工程实践与工具链资料，后续给 Agent 自动补全关键词和边界。"
+                                            rows={3}
+                                            placeholder="例如：收藏前端工程实践与工具链资料"
                                         />
+                                    </Form.Item>
+                                    <Form.Item label="匹配结构" extra="可先草拟再改；保存后写入本地库。">
+                                        <Button
+                                            loading={draftingProfile}
+                                            disabled={savingProfile}
+                                            onClick={async () => {
+                                                const purpose = form.getFieldValue('purpose')?.trim()
+                                                if (!purpose) {
+                                                    message.warning('请先填写用途说明，再草拟词表')
+                                                    return
+                                                }
+
+                                                setDraftingProfile(true)
+                                                setProfileError(null)
+                                                try {
+                                                    const result = await draftFolderProfileStructure(activeFolder.id, {
+                                                        purpose
+                                                    })
+                                                    form.setFieldsValue({
+                                                        includeTopics: result.draft.includeTopics,
+                                                        excludeTopics: result.draft.excludeTopics,
+                                                        keywords: result.draft.keywords
+                                                    })
+                                                    message.success(
+                                                        `已草拟词表（依据 ${result.meta.sampleCount} 条样本，请确认后保存）`
+                                                    )
+                                                } catch (error: unknown) {
+                                                    if (error instanceof ApiError) {
+                                                        const payload = error.payload as { error?: string; message?: string }
+                                                        if (payload?.error === 'llm_not_configured') {
+                                                            message.error('未配置 OPENAI_API_KEY，无法在服务端调用 DeepSeek')
+                                                            return
+                                                        }
+                                                        setProfileError(payload?.message ?? error.message)
+                                                        return
+                                                    }
+                                                    setProfileError(error instanceof Error ? error.message : '草拟失败')
+                                                } finally {
+                                                    setDraftingProfile(false)
+                                                }
+                                            }}
+                                        >
+                                            草拟词表（DeepSeek）
+                                        </Button>
+                                    </Form.Item>
+                                    <Form.Item name="includeTopics" label="纳入主题">
+                                        <Input.TextArea rows={2} placeholder="逗号分隔，参与标题/简介匹配" />
+                                    </Form.Item>
+                                    <Form.Item name="keywords" label="关键词">
+                                        <Select mode="tags" tokenSeparators={[',', '，', '、']} placeholder="回车添加词条" />
+                                    </Form.Item>
+                                    <Form.Item name="excludeTopics" label="排除主题">
+                                        <Input.TextArea rows={2} placeholder="命中则不作为候选" />
                                     </Form.Item>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                                         <Typography.Text type="secondary">
-                                            保存后会自动切到下一个未完成的关键收藏夹；后续再补 Agent
-                                            自动草拟与人工微调。
+                                            保存后会自动切到下一个未完成的关键收藏夹。
                                         </Typography.Text>
                                         <Button type="primary" htmlType="submit" loading={savingProfile}>
                                             保存并继续
