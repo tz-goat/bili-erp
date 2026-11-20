@@ -1,5 +1,6 @@
 # 依赖
 node_modules/
+.pnpm-store/
 
 # 环境变量：含真实登录态，禁止提交
 .env
