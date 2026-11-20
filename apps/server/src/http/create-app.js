@@ -4,6 +4,7 @@ import path from 'node:path'
 import express from 'express'
 
 import { WEB_DIST_DIRECTORY } from '../config/env.js'
+import { createDecisionRoutes } from '../routes/decision-routes.js'
 import { createFolderProfileRoutes } from '../routes/folder-profile-routes.js'
 import { createImportRoutes } from '../routes/import-routes.js'
 import { createKeyFoldersRoutes } from '../routes/key-folders-routes.js'
@@ -33,8 +34,9 @@ export function createApp() {
     // 初始化写入按资源独立挂载，不塞进 workspace 命名空间。
     app.use('/api/key-folders', createKeyFoldersRoutes())
     app.use('/api/folder-profiles', createFolderProfileRoutes())
-    // 建议以「收藏项」为主体资源，所以挂在 /api/items 下，而不是塞进 workspace 命名空间。
+    // 建议与决定都以「收藏项」为主体资源，挂在 /api/items 下，不塞进 workspace 命名空间。
     app.use('/api/items', createSuggestionRoutes())
+    app.use('/api/items', createDecisionRoutes())
 
     mountWebBuild(app)
 
