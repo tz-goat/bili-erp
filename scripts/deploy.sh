@@ -18,17 +18,24 @@ git fetch --prune origin
 git checkout master
 git reset --hard origin/master
 
+# Actions 非交互 SSH 不读 .bashrc；nvm 装的 node/pnpm/pm2 必须显式 source。
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck source=/dev/null
+    . "$NVM_DIR/nvm.sh"
+fi
+
 if command -v corepack >/dev/null 2>&1; then
     corepack enable
 fi
 
 if ! command -v pnpm >/dev/null 2>&1; then
-    echo "error: pnpm not found; install Node with corepack or add pnpm to PATH" >&2
+    echo "error: pnpm not found after loading nvm; check NVM_DIR=$NVM_DIR PATH=$PATH" >&2
     exit 1
 fi
 
 if ! command -v pm2 >/dev/null 2>&1; then
-    echo "error: pm2 not found; npm i -g pm2" >&2
+    echo "error: pm2 not found; npm i -g pm2 (under the same nvm node)" >&2
     exit 1
 fi
 
