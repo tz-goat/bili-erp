@@ -25,8 +25,10 @@ if [[ -s "$NVM_DIR/nvm.sh" ]]; then
     . "$NVM_DIR/nvm.sh"
 fi
 
+# corepack 按 package.json 的 packageManager（精确 semver）对齐 pnpm。
 if command -v corepack >/dev/null 2>&1; then
     corepack enable
+    corepack prepare --activate
 fi
 
 if ! command -v pnpm >/dev/null 2>&1; then

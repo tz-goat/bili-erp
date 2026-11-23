@@ -1,17 +1,46 @@
-# master 合并后 SSH 进生产机跑 scripts/deploy.sh（pm2 + SQLite 单实例）。
-name: Deploy production
+# 单文件双 job：非 master 只跑 CI；master / 手动触发在 CI 绿后才 SSH 部署。
+name: CI and Deploy
 
 on:
   push:
+  pull_request:
     branches: [master]
   workflow_dispatch:
 
 concurrency:
-  group: production-deploy
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # master 部署不中断；其它分支新 push 可取消未完成的 CI
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # 读取 package.json 的 packageManager（须为精确 semver）
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
   deploy:
+    needs: ci
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -30,7 +59,7 @@ jobs:
               . "$NVM_DIR/nvm.sh"
             fi
             cd "${{ secrets.DEPLOY_PATH }}"
-            # 先对齐 master，保证本机已有最新 scripts/deploy.sh（首挂 workflow 时必要）
+            # 始终对齐 master（手动 dispatch 也不部署其它分支）
             git fetch --prune origin
             git checkout master
             git reset --hard origin/master

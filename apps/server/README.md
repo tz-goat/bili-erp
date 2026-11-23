@@ -28,9 +28,17 @@ adapters -> config
 http -> routes
 ```
 
-## 生产部署（PM2 + GitHub Actions）
+## CI / 生产部署（PM2 + GitHub Actions）
 
-合并进 `master` 会触发 [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml)，SSH 进机器执行 [`scripts/deploy.sh`](../../scripts/deploy.sh)：`reset --hard origin/master` → `pnpm install --frozen-lockfile` → `pnpm build` → `pm2 reload` → `/health` 探活。
+[`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) 单文件双 job：
+
+| 场景 | `ci` | `deploy`（needs ci） |
+| --- | --- | --- |
+| push / PR（任意或指向 master） | runner：`install` + `build` + `test` | 跳过 |
+| push `master` | 同上 | SSH 跑 [`scripts/deploy.sh`](../../scripts/deploy.sh) |
+| Actions **Run workflow** | 同上 | 固定部署机上 `origin/master`（不选手动分支） |
+
+机上：`reset --hard origin/master` → `pnpm install --frozen-lockfile` → `pnpm build` → `pm2 reload` → `/health`。
 
 ### 机上一次性
 
@@ -49,7 +57,7 @@ http -> routes
 | `DEPLOY_SSH_KEY` | 私钥全文（含 `BEGIN`/`END`） |
 | `DEPLOY_PATH` | 机上仓库绝对路径 |
 
-可在 Actions 里用 **Run workflow**（`workflow_dispatch`）手动重跑。新 env 键仍要 SSH 改机上 `.env` 再 reload，脚本不碰密钥。
+新 env 键仍要 SSH 改机上 `.env` 再 reload，脚本不碰密钥。仓库用精确 `"packageManager": "pnpm@…"`（勿写 `^`），供 CI corepack / 机上对齐。
 
 ## 当前状态
 
