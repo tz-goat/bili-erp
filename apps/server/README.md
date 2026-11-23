@@ -35,7 +35,7 @@ http -> routes
 ### 机上一次性
 
 1. clone 本仓库到部署目录，跟踪 `origin/master`（机上不要手改代码；脚本会 hard reset）
-2. 安装 Node（建议带 corepack）、全局 `pm2`；`pm2 startup` 写好开机自启
+2. 安装 Node + 全局 `pm2`；`pm2 startup` 写好开机自启。若用 **nvm**，部署脚本会 source `$HOME/.nvm/nvm.sh`（Actions 非交互 SSH 不读 `.bashrc`）
 3. 在部署目录放好 `.env`（`AUTH_*` / `BILI_*` / `OPENAI_API_KEY` 等），**不要**把密钥推进仓库或 Actions
 4. 首次：`pm2 start ecosystem.config.cjs --env production && pm2 save`
 5. 生成无密码 deploy SSH key：公钥进机上 `~/.ssh/authorized_keys`，私钥进 GitHub Secret
