@@ -6,6 +6,7 @@ import type { WorkspaceSortBy, WorkspaceSortOrder, WorkspaceView } from '../../a
 /** 右栏列表的查询条件：翻页与排序共用一份，任一变化都算「换了一次查询」。 */
 export type WorkspaceViewQuery = {
     page: number
+    keyword?: string
     /** 未指定时不带 query，后端回落默认序；UI 表现为「无排序态」。 */
     sortBy?: WorkspaceSortBy
     sortOrder?: WorkspaceSortOrder
@@ -32,14 +33,14 @@ type SettledView = {
  * loading / error 由「已落地结果是否对应当前查询」派生，而不是在 effect 里同步 setState
  * （那会触发级联渲染）；查询未追上期间保留上一份数据，让表格只变灰不闪空。
  *
- * queryKey 把 page / sortBy / sortOrder 压成一个可比对的值：
+ * queryKey 把 page / keyword / sortBy / sortOrder 压成一个可比对的值：
  * 若只比 page，仅改排序时会误判为「已追上」，返回旧顺序的数据且 loading 为 false。
  */
 export function useWorkspaceView(containerId: string | null, query: WorkspaceViewQuery): WorkspaceViewState {
     const [settled, setSettled] = useState<SettledView | null>(null)
     const [refreshNonce, setRefreshNonce] = useState(0)
-    const { page, sortBy, sortOrder } = query
-    const queryKey = `${page}|${sortBy ?? ''}|${sortOrder ?? ''}`
+    const { page, keyword, sortBy, sortOrder } = query
+    const queryKey = `${page}|${keyword ?? ''}|${sortBy ?? ''}|${sortOrder ?? ''}`
     const reload = () => setRefreshNonce((value) => value + 1)
 
     useEffect(() => {
@@ -52,6 +53,7 @@ export function useWorkspaceView(containerId: string | null, query: WorkspaceVie
 
         fetchWorkspaceView(containerId, {
             page,
+            ...(keyword ? { keyword } : {}),
             ...(sortBy && sortOrder ? { sortBy, sortOrder } : {})
         })
             .then((view) => {
@@ -73,7 +75,7 @@ export function useWorkspaceView(containerId: string | null, query: WorkspaceVie
         return () => {
             cancelled = true
         }
-    }, [containerId, page, sortBy, sortOrder, queryKey, refreshNonce])
+    }, [containerId, page, keyword, sortBy, sortOrder, queryKey, refreshNonce])
 
     if (!containerId) {
         return { view: null, loading: false, error: null, reload }

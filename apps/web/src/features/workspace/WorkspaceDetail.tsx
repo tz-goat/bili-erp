@@ -5,6 +5,7 @@ import {
     Card,
     Descriptions,
     Empty,
+    Input,
     message,
     Pagination,
     Popconfirm,
@@ -223,6 +224,8 @@ type WorkspaceDetailProps = {
  */
 export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: WorkspaceDetailProps) {
     const [page, setPage] = useState(1)
+    const [keywordInput, setKeywordInput] = useState('')
+    const [keyword, setKeyword] = useState('')
     const [sort, setSort] = useState<SortState>(null)
     const [profileOpen, setProfileOpen] = useState(false)
     const [marking, setMarking] = useState(false)
@@ -235,6 +238,7 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
 
     const { view, loading, error, reload } = useWorkspaceView(container?.id ?? null, {
         page,
+        keyword,
         sortBy: sort?.sortBy,
         sortOrder: sort?.sortOrder
     })
@@ -386,19 +390,36 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
                 )}
             </Space>
             {view && (
-                <Descriptions
-                    size="small"
-                    column={4}
-                    style={statsStyle}
-                    items={[
-                        { key: 'total', label: '收藏项', children: view.stats.totalItems },
-                        { key: 'pending', label: '待确认', children: view.stats.pendingDecisionCount },
-                        { key: 'confirmed', label: '已确认', children: view.stats.confirmedCount },
-                        { key: 'suggestion', label: '已生成建议', children: view.stats.suggestionCoverageCount }
-                    ]}
-                />
+                <Space size={16} wrap style={statsStyle}>
+                    <Typography.Text type="secondary">收藏项 {view.stats.totalItems}</Typography.Text>
+                    <Typography.Text type="secondary">待确认 {view.stats.pendingDecisionCount}</Typography.Text>
+                    <Typography.Text type="secondary">已确认 {view.stats.confirmedCount}</Typography.Text>
+                    <Typography.Text type="secondary">已生成建议 {view.stats.suggestionCoverageCount}</Typography.Text>
+                </Space>
             )}
-            <Card title="收藏项">
+            <Card
+                title="收藏项"
+                extra={
+                    <Input.Search
+                        allowClear
+                        placeholder="搜索标题或 UP 主"
+                        style={{ width: 240 }}
+                        value={keywordInput}
+                        onChange={(event) => {
+                            const next = event.target.value
+                            setKeywordInput(next)
+                            if (next === '') {
+                                setKeyword('')
+                                setPage(1)
+                            }
+                        }}
+                        onSearch={(value) => {
+                            setKeyword(value.trim())
+                            setPage(1)
+                        }}
+                    />
+                }
+            >
                 {error ? (
                     <Alert type="error" showIcon message="收藏项加载失败" description={error} />
                 ) : (
@@ -411,8 +432,8 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
                                 sort,
                                 {
                                     busyItemId,
-                                    onGenerate: handleGenerate
-                                },
+                    onGenerate: handleGenerate
+                },
                                 { showOrganizeColumns: !isKeyFolder }
                             )}
                             dataSource={view?.list.items ?? []}
