@@ -97,7 +97,6 @@ sortOrder=desc
   "totalItems": 82,
   "pendingDecisionCount": 15,
   "confirmedCount": 30,
-  "deferredCount": 7,
   "suggestionCoverageCount": 52,
   "activeSourceCount": 82
 }
@@ -108,7 +107,6 @@ sortOrder=desc
 - `totalItems`：当前容器下总条目数
 - `pendingDecisionCount`：当前仍待确认的收藏项数
 - `confirmedCount`：已确认目标收藏夹的收藏项数
-- `deferredCount`：暂不处理的收藏项数
 - `suggestionCoverageCount`：已经生成过建议的收藏项数
 - `activeSourceCount`：当前导入快照下仍有效的来源归属数
 

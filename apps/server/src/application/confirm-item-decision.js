@@ -50,31 +50,6 @@ export async function confirmItemDecision({ itemId, payload } = {}) {
     })
 }
 
-/**
- * 把「暂不处理」落到 item_decisions，不携带目标收藏夹。
- */
-export async function deferItemDecision({ itemId, payload } = {}) {
-    migrateDatabase()
-
-    const database = getDatabase()
-    const normalizedItemId = typeof itemId === 'string' ? itemId.trim() : ''
-
-    if (!findItem(database, normalizedItemId)) {
-        return { error: ITEM_NOT_FOUND, itemId: normalizedItemId || itemId }
-    }
-
-    const body = payload ?? {}
-
-    return upsertDecision(database, {
-        itemId: normalizedItemId,
-        status: ITEM_DECISION_STATUS.deferred,
-        chosenFolderId: null,
-        chosenFolderTitle: null,
-        sourceSuggestionGroupId: null,
-        note: normalizeOptionalText(body.note) || ''
-    })
-}
-
 function upsertDecision(database, {
     itemId,
     status,
@@ -131,7 +106,7 @@ function upsertDecision(database, {
 
 /**
  * decidedAt 表示「第一次做出非 pending 决定」的时间：
- * 从无记录或 pending 进入 confirmed/deferred → 写当前时间；
+ * 从无记录或 pending 进入 confirmed → 写当前时间；
  * 已有非 pending 决定再改 → 保留原值。
  */
 function resolveDecidedAt(previous, now) {

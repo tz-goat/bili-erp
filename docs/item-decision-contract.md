@@ -6,10 +6,7 @@
 
 > 用户看完建议之后，准备怎么处理这条收藏项？
 
-一期只保留两种显式操作：
-
-- 确认目标收藏夹
-- 暂不处理
+一期只保留一种显式操作：确认目标收藏夹。暂不处理已删除。
 
 它的职责是把这次人工判断稳定地落到 `item_decisions`，
 而不是直接去调用平台移动接口。
@@ -18,17 +15,9 @@
 
 ```text
 PUT /api/items/:itemId/decision/confirm
-PUT /api/items/:itemId/decision/defer
 ```
 
-### 为什么拆成两个路由
-
-这里故意不用一个 `status` 字段混传，是为了把两种动作的业务语义固定住：
-
-- `confirm` 一定带目标收藏夹
-- `defer` 一定是不选目标、先挂起
-
-这样前端和后端都少一层“参数组合是否合法”的分支判断。
+`confirm` 一定带目标收藏夹。
 
 ## 3. `confirm` 输入
 
@@ -60,29 +49,9 @@ PUT /api/items/:itemId/decision/defer
 2. `chosenFolderId` 必须是普通收藏夹，不能是 `watch_later`
 3. `sourceSuggestionGroupId` 允许为空，因为一期也允许“无建议直接人工确认”
 
-## 4. `defer` 输入
+## 4. 输出
 
-### Path
-
-| 字段     | 必填 | 说明      |
-| -------- | ---- | --------- |
-| `itemId` | 是   | 收藏项 id |
-
-### Body
-
-```json
-{
-  "note": "暂时不处理，等补充更多关键收藏夹说明后再看"
-}
-```
-
-| 字段   | 必填 | 说明               |
-| ------ | ---- | ------------------ |
-| `note` | 否   | 暂不处理的补充说明 |
-
-## 5. 输出
-
-两个路由成功后都返回同一份“当前决定快照”：
+成功后返回当前决定快照：
 
 ```json
 {
@@ -101,7 +70,7 @@ PUT /api/items/:itemId/decision/defer
 
 ### 字段含义
 
-- `status`：`pending` / `confirmed` / `deferred`
+- `status`：`pending` / `confirmed`
 - `chosenFolderId`：仅 `confirmed` 时有值
 - `chosenFolderTitle`：给前端直接回显，避免列表页再补一次查表
 - `sourceSuggestionGroupId`：若这次确认来自某组建议，则保留来源
@@ -122,27 +91,9 @@ PUT /api/items/:itemId/decision/defer
 }
 ```
 
-### 6.2 `defer`
+### 6.2 为什么没有“改回 pending”
 
-执行 `defer` 后，当前决定应变为：
-
-```json
-{
-  "status": "deferred",
-  "chosenFolderId": null
-}
-```
-
-### 6.3 为什么没有“改回 pending”
-
-一期先不开放“撤销为待确认”接口。
-因为当前最小闭环只关心三件事：
-
-- 还没决定
-- 已确认目标
-- 暂时搁置
-
-如果后面真的需要撤销，再单独补 `reset`，而不是把现在的接口做成任意状态覆盖。
+一期先不开放“撤销为待确认”接口。当前只区分还没决定和已确认目标。
 
 ## 7. 时间字段规则
 
@@ -150,8 +101,8 @@ PUT /api/items/:itemId/decision/defer
 
 `decidedAt` 的规则是：
 
-1. 从 `pending` 进入 `confirmed` / `deferred` → 写当前时间
-2. 已有非 `pending` 决定，再次确认或再次暂缓 → 保留原 `decidedAt`
+1. 从 `pending` 进入 `confirmed` → 写当前时间
+2. 已有 `confirmed`，再次确认 → 保留原 `decidedAt`
 
 这样它表达的是“第一次做出处理决定的时间”，不会和 `updatedAt` 重复。
 

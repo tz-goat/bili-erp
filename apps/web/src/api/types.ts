@@ -59,7 +59,6 @@ export type WorkspaceStats = {
     totalItems: number
     pendingDecisionCount: number
     confirmedCount: number
-    deferredCount: number
     suggestionCoverageCount: number
     activeSourceCount: number
 }
@@ -86,7 +85,7 @@ export type Pagination = {
     hasPreviousPage: boolean
 }
 
-export type DecisionStatus = 'pending' | 'confirmed' | 'deferred'
+export type DecisionStatus = 'pending' | 'confirmed'
 
 export type SuggestionTopCandidate = {
     folderId: string

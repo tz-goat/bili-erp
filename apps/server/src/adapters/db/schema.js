@@ -26,7 +26,7 @@ export const TABLES = {
  */
 export const ENUMS = {
     importStatus: ['running', 'completed', 'failed'],
-    suggestionDecisionStatus: ['pending', 'confirmed', 'deferred'],
+    suggestionDecisionStatus: ['pending', 'confirmed'],
     syncStatus: ['not_synced', 'synced', 'sync_failed'],
     watchLaterStatus: ['pending', 'transferred', 'deferred'],
     suggestionGeneratedBy: ['rules', 'hybrid', 'ai'],
@@ -207,7 +207,7 @@ export const SCHEMA = {
         purpose: '记录每个收藏项当前的确认状态，一期先按单当前决定处理',
         columns: {
             item_id: 'TEXT PRIMARY KEY REFERENCES source_items(id)',
-            status: "TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'deferred'))",
+            status: "TEXT NOT NULL CHECK (status IN ('pending', 'confirmed'))",
             chosen_folder_id: 'TEXT REFERENCES source_folders(id)',
             source_suggestion_group_id: 'TEXT',
             decided_at: 'TEXT',

@@ -6,8 +6,7 @@
 /** `item_decisions.status` 的最小状态集。 */
 export const ITEM_DECISION_STATUS = {
     pending: 'pending',
-    confirmed: 'confirmed',
-    deferred: 'deferred'
+    confirmed: 'confirmed'
 }
 
 export const ITEM_NOT_FOUND = 'item_not_found'
@@ -23,17 +22,6 @@ export function createConfirmItemDecisionInput(overrides = {}) {
         itemId: null,
         chosenFolderId: null,
         sourceSuggestionGroupId: null,
-        note: '',
-        ...overrides
-    }
-}
-
-/**
- * `defer` 不带目标收藏夹，只保留补充说明。
- */
-export function createDeferItemDecisionInput(overrides = {}) {
-    return {
-        itemId: null,
         note: '',
         ...overrides
     }

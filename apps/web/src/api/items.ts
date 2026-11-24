@@ -22,11 +22,3 @@ export function confirmItemDecision(
         body: JSON.stringify(payload)
     })
 }
-
-/** 暂不处理：不带目标收藏夹。 */
-export function deferItemDecision(itemId: string, payload: { note?: string } = {}) {
-    return request<ItemDecisionResult>(`/api/items/${encodeURIComponent(itemId)}/decision/defer`, {
-        method: 'PUT',
-        body: JSON.stringify(payload)
-    })
-}

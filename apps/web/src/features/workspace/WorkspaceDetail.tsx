@@ -16,7 +16,7 @@ import {
 import type { TableProps } from 'antd'
 import type { CSSProperties } from 'react'
 
-import { confirmItemDecision, deferItemDecision, generateItemSuggestions } from '../../api/items'
+import { confirmItemDecision, generateItemSuggestions } from '../../api/items'
 import { setKeyFolders } from '../../api/key-folders'
 import type {
     DecisionStatus,
@@ -62,20 +62,17 @@ const SORT_BY_COLUMN_KEY: Record<string, WorkspaceSortBy> = {
 
 const DECISION_LABEL: Record<DecisionStatus, string> = {
     pending: '待确认',
-    confirmed: '已确认',
-    deferred: '暂不处理'
+    confirmed: '已确认'
 }
 
 const DECISION_COLOR: Record<DecisionStatus, string> = {
     pending: 'default',
-    confirmed: 'green',
-    deferred: 'orange'
+    confirmed: 'green'
 }
 
 type ColumnActions = {
     busyItemId: string | null
     onGenerate: (item: WorkspaceViewItem) => void
-    onDefer: (item: WorkspaceViewItem) => void
 }
 
 /**
@@ -198,28 +195,17 @@ function createColumns(
             title: '操作',
             key: 'actions',
             fixed: 'right',
-            width: 180,
-            render: (_, item) => {
-                const busy = actions.busyItemId === item.id
-                return (
-                    <Space size={0}>
-                        <Button type="link" size="small" loading={busy} onClick={() => actions.onGenerate(item)}>
-                            生成建议
-                        </Button>
-                        <Popconfirm
-                            title="确定标记为暂不处理？"
-                            okText="确定"
-                            cancelText="取消"
-                            disabled={busy || item.decision.status === 'deferred'}
-                            onConfirm={() => actions.onDefer(item)}
-                        >
-                            <Button type="link" size="small" disabled={busy || item.decision.status === 'deferred'}>
-                                暂不处理
-                            </Button>
-                        </Popconfirm>
-                    </Space>
-                )
-            }
+            width: 100,
+            render: (_, item) => (
+                <Button
+                    type="link"
+                    size="small"
+                    loading={actions.busyItemId === item.id}
+                    onClick={() => actions.onGenerate(item)}
+                >
+                    生成建议
+                </Button>
+            )
         }
     ]
 }
@@ -325,19 +311,6 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
         }
     }
 
-    const handleDefer = async (item: WorkspaceViewItem) => {
-        setBusyItemId(item.id)
-        try {
-            await deferItemDecision(item.id)
-            message.success('已标记为暂不处理')
-            reload()
-        } catch (err) {
-            message.error(err instanceof Error ? err.message : '操作失败')
-        } finally {
-            setBusyItemId(null)
-        }
-    }
-
     const handleConfirmCandidate = async (candidate: SuggestionCandidate) => {
         if (!suggestionModal) {
             return
@@ -415,13 +388,12 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
             {view && (
                 <Descriptions
                     size="small"
-                    column={5}
+                    column={4}
                     style={statsStyle}
                     items={[
                         { key: 'total', label: '收藏项', children: view.stats.totalItems },
                         { key: 'pending', label: '待确认', children: view.stats.pendingDecisionCount },
                         { key: 'confirmed', label: '已确认', children: view.stats.confirmedCount },
-                        { key: 'deferred', label: '暂不处理', children: view.stats.deferredCount },
                         { key: 'suggestion', label: '已生成建议', children: view.stats.suggestionCoverageCount }
                     ]}
                 />
@@ -439,8 +411,7 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
                                 sort,
                                 {
                                     busyItemId,
-                                    onGenerate: handleGenerate,
-                                    onDefer: handleDefer
+                                    onGenerate: handleGenerate
                                 },
                                 { showOrganizeColumns: !isKeyFolder }
                             )}

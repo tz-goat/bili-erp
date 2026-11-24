@@ -127,12 +127,12 @@
 - **单夹失败的软失效例外**：本轮拉取失败的收藏夹不参与软失效，避免一次网络抖动把整夹内容清空
 - **上游限流即中止**：`resource/list` 出现 `412`/`429` 时整轮导入直接 `failed`，剩余收藏夹短路不再发请求，避免在已被限流的端点上继续加压
 - **右栏 view 的实现口径**：一期只支持 `folder` 容器；时间字段返回本地时间 `YYYY-MM-DD HH:mm:ss`；`stats` 是容器级不随 `keyword` 变化；建议摘要按 item 级取最新分组
-- **容器级统计呈现口径**：2.3 把 `stats` 在右栏头部单独渲染成一行紧凑统计（收藏项 / 待确认 / 已确认 / 暂不处理 / 已生成建议），并取代此前头部与之重复的两个计数 Tag，保证同一数字只有一个来源
+- **容器级统计呈现口径**：右栏头部统计为收藏项 / 待确认 / 已确认 / 已生成建议。暂不处理已删除。
 - **右栏排序口径**：`SORT_COLUMNS` 白名单为 `fav_time` / `publish_time` / `duration` / `title`；三列排序全部走服务端（列头只声明 `sorter: true` + 受控 `sortOrder`，不给比较函数，否则只排当前页且时长按 `MM:SS` 文本比较不是数值序）；初始与「取消排序」均为 UI 无状态（列头无箭头），请求不带 sort 参数、由后端回落 `fav_time desc`；换排序时页码回到第一页
 - **右栏查询一致性口径**：`useWorkspaceView` 用 `page|sortBy|sortOrder` 拼成 `queryKey` 判断「是否已追上当前查询」。只比 `page` 会在仅改排序时误判为已追上，返回旧顺序数据且 `loading = false`
 - **左栏搜索口径**：纯前端标题过滤（大小写不敏感），不给 `GET /api/workspace/sidebar` 加 query 参数，因此与 [workspace-sidebar-contract.md](file:///Users/dateng/pl-dashboard-2610/docs/workspace-sidebar-contract.md) §2「左栏不承担搜索」不冲突；搜索时隐藏过滤后为空的分区，全空则显示空态；被过滤掉的当前选中项不自动切换
 - **词表编辑口径**：匹配只用 `includeTopics`，排除用 `excludeTopics`。`keywords` 已从模型和表结构删除。
-- **整理闭环口径**：生成建议与确认决定拆开——`POST .../suggestions` 只写 `item_suggestions`，`PUT .../decision/confirm|defer` 只写 `item_decisions`；确认成功后靠 `useWorkspaceView.reload` 刷新列表与容器级统计，不写平台
+- **整理闭环口径**：`POST .../suggestions` 写建议，`PUT .../decision/confirm` 写确认。没有暂不处理。
 - **前端工程形态**：pnpm workspace（`apps/*`），根目录统一 `pnpm install` 与 lockfile；`apps/web` 用 Vite + React 19 + antd 6 + TypeScript（strict），开发期 `/api` 由 Vite proxy 透传到 `localhost:3001`，前端一律写相对路径以避开 CORS
 - **工作区选中态口径**：默认选中用 `pickedContainerId ?? sidebar.defaultContainerId` 在渲染期收口，不用 `useEffect` 回写默认值——避免用户已点选后被 effect 覆盖的竞态；1.16 右栏只渲染容器头部与占位，不提前请求 `container view`
 - **冷启动判定口径**：直接复用 `GET /api/imports/latest`；`404` 视为从未导入过，其余状态都视为已有导入记录，不额外新增初始化状态接口；1.17 已按此把首页串成「导入 → 关键收藏夹 → 收藏夹说明 → 工作区」
