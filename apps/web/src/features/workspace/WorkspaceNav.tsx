@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Badge, Empty, Input, Menu, Spin } from 'antd'
+import { Alert, Empty, Input, Menu, Spin, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 
 import type { SidebarItem, WorkspaceSidebar } from '../../api/types'
@@ -84,14 +84,14 @@ export function WorkspaceNav({ sidebar, loading, error, selectedContainerId, onS
     )
 }
 
-/** 导航项标签：标题 + 待处理数。纯文字列表，不引入封面图，保证左栏信息密度。 */
+/** 导航项标签：标题 + 该夹视频总数。不用红色徽标，避免把存量都读成待办。 */
 function NavItemLabel({ item }: { item: SidebarItem }) {
     return (
         <span style={labelStyle}>
             <span style={titleStyle} title={item.title}>
                 {item.title}
             </span>
-            {item.pendingCount > 0 && <Badge count={item.pendingCount} size="small" />}
+            <Typography.Text type="secondary">{item.itemCount}</Typography.Text>
         </span>
     )
 }
