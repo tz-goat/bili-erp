@@ -58,11 +58,9 @@ describe('suggestItemTarget', () => {
         const frontendFolderId = seedKeyFolderWithProfile({
             sourceFolderId: '888',
             title: '前端工程',
-            includeTopics: '前端, 工程化',
-            keywords: ['react']
+            includeTopics: '前端, 工程化'
         })
-        // 同分的另一组说明：不复用上面的词表，用来证明它是被匹配规则过滤掉的，而不是被 limit 截掉的
-        seedKeyFolderWithProfile({ sourceFolderId: '999', title: '随手拍', includeTopics: '摄影', keywords: ['相机'] })
+        seedKeyFolderWithProfile({ sourceFolderId: '999', title: '随手拍', includeTopics: '摄影' })
         const itemId = insertItem({ sourceVideoId: 'BV1', title: '前端工程化实践：React 与 TypeScript', intro: 'vite 构建链路' })
 
         const result = await suggestItemTarget({
@@ -79,8 +77,8 @@ describe('suggestItemTarget', () => {
             folderId: frontendFolderId,
             folderTitle: '前端工程',
             rank: 1,
-            reason: '命中关键词：前端、工程化、react',
-            evidenceTags: ['前端', '工程化', 'react']
+            reason: '命中关键词：前端、工程化',
+            evidenceTags: ['前端', '工程化']
         })
 
         // 返回的分组 id 必须和落库一致，界面「最新建议」靠它定位
@@ -92,7 +90,7 @@ describe('suggestItemTarget', () => {
         assert.equal(rows[0].suggestion_group_id, result.suggestionGroupId)
         assert.equal(rows[0].candidate_folder_id, frontendFolderId)
         assert.equal(rows[0].rank, 1)
-        assert.deepEqual(JSON.parse(rows[0].evidence_tags_json), ['前端', '工程化', 'react'])
+        assert.deepEqual(JSON.parse(rows[0].evidence_tags_json), ['前端', '工程化'])
     })
 
     test('收藏项不存在时返回 item_not_found，且不落库', async () => {
@@ -118,8 +116,7 @@ describe('suggestItemTarget', () => {
         seedKeyFolderWithProfile({
             sourceFolderId: '888',
             title: '前端工程',
-            includeTopics: '前端',
-            keywords: ['react'],
+            includeTopics: '前端, react',
             excludeTopics: 'react'
         })
         const itemId = insertItem({ sourceVideoId: 'BV1', title: 'React 工程化实践' })
@@ -131,7 +128,7 @@ describe('suggestItemTarget', () => {
     })
 })
 
-function seedKeyFolderWithProfile({ sourceFolderId, title, includeTopics = '', excludeTopics = '', keywords = [], completed = true }) {
+function seedKeyFolderWithProfile({ sourceFolderId, title, includeTopics = '', excludeTopics = '', completed = true }) {
     const database = getDatabase()
     const folderId = `folder_${sourceFolderId}`
 
@@ -145,9 +142,9 @@ function seedKeyFolderWithProfile({ sourceFolderId, title, includeTopics = '', e
     `).run(folderId, NOW, NOW, NOW)
 
     database.prepare(`
-        INSERT INTO ${TABLES.folderProfiles} (folder_id, include_topics, exclude_topics, keywords_json, purpose, completed_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(folderId, includeTopics, excludeTopics, JSON.stringify(keywords), '测试说明', completed ? NOW : null, NOW, NOW)
+        INSERT INTO ${TABLES.folderProfiles} (folder_id, include_topics, exclude_topics, purpose, completed_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(folderId, includeTopics, excludeTopics, '测试说明', completed ? NOW : null, NOW, NOW)
 
     return folderId
 }

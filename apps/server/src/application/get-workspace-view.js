@@ -73,7 +73,6 @@ function findContainerRow(containerId, mid) {
             p.completed_at,
             p.include_topics,
             p.exclude_topics,
-            p.keywords_json,
             p.purpose,
             p.notes
         FROM ${TABLES.sourceFolders} AS f
@@ -96,7 +95,6 @@ function mapContainerRow(row) {
         description: row.purpose == null ? null : {
             includeTopics: row.include_topics || '',
             excludeTopics: row.exclude_topics || '',
-            keywords: parseKeywords(row.keywords_json),
             purpose: row.purpose || '',
             notes: row.notes || ''
         }

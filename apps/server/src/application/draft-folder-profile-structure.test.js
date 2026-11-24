@@ -8,22 +8,20 @@ describe('parseDraftPayload', () => {
         const draft = parseDraftPayload(
             JSON.stringify({
                 includeTopics: '前端, 工程化',
-                excludeTopics: '游戏',
-                keywords: ['react', 'typescript']
+                excludeTopics: '游戏'
             })
         )
 
         assert.deepEqual(draft, {
             includeTopics: '前端, 工程化',
-            excludeTopics: '游戏',
-            keywords: ['react', 'typescript']
+            excludeTopics: '游戏'
         })
     })
 
     test('去掉 markdown 围栏', () => {
-        const draft = parseDraftPayload('```json\n{"includeTopics":"摄影","excludeTopics":"","keywords":["相机"]}\n```')
+        const draft = parseDraftPayload('```json\n{"includeTopics":"摄影","excludeTopics":""}\n```')
         assert.equal(draft.includeTopics, '摄影')
-        assert.deepEqual(draft.keywords, ['相机'])
+        assert.equal(draft.excludeTopics, '')
     })
 
     test('非法 JSON 抛 invalid_draft_response', () => {

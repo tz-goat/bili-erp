@@ -131,12 +131,12 @@
 - **右栏排序口径**：`SORT_COLUMNS` 白名单为 `fav_time` / `publish_time` / `duration` / `title`；三列排序全部走服务端（列头只声明 `sorter: true` + 受控 `sortOrder`，不给比较函数，否则只排当前页且时长按 `MM:SS` 文本比较不是数值序）；初始与「取消排序」均为 UI 无状态（列头无箭头），请求不带 sort 参数、由后端回落 `fav_time desc`；换排序时页码回到第一页
 - **右栏查询一致性口径**：`useWorkspaceView` 用 `page|sortBy|sortOrder` 拼成 `queryKey` 判断「是否已追上当前查询」。只比 `page` 会在仅改排序时误判为已追上，返回旧顺序数据且 `loading = false`
 - **左栏搜索口径**：纯前端标题过滤（大小写不敏感），不给 `GET /api/workspace/sidebar` 加 query 参数，因此与 [workspace-sidebar-contract.md](file:///Users/dateng/pl-dashboard-2610/docs/workspace-sidebar-contract.md) §2「左栏不承担搜索」不冲突；搜索时隐藏过滤后为空的分区，全空则显示空态；被过滤掉的当前选中项不自动切换
-- **词表编辑口径**：初始化仍只强制 `purpose`；匹配词表（`includeTopics` / `keywords` / `excludeTopics`）在工作区关键收藏夹的「编辑说明」里补，走既有 `PUT /api/folder-profiles/:folderId` 整份覆盖；`notes` 一期不暴露编辑，提交时原样带回以免抹掉
+- **词表编辑口径**：匹配只用 `includeTopics`，排除用 `excludeTopics`。`keywords` 已从模型和表结构删除。
 - **整理闭环口径**：生成建议与确认决定拆开——`POST .../suggestions` 只写 `item_suggestions`，`PUT .../decision/confirm|defer` 只写 `item_decisions`；确认成功后靠 `useWorkspaceView.reload` 刷新列表与容器级统计，不写平台
 - **前端工程形态**：pnpm workspace（`apps/*`），根目录统一 `pnpm install` 与 lockfile；`apps/web` 用 Vite + React 19 + antd 6 + TypeScript（strict），开发期 `/api` 由 Vite proxy 透传到 `localhost:3001`，前端一律写相对路径以避开 CORS
 - **工作区选中态口径**：默认选中用 `pickedContainerId ?? sidebar.defaultContainerId` 在渲染期收口，不用 `useEffect` 回写默认值——避免用户已点选后被 effect 覆盖的竞态；1.16 右栏只渲染容器头部与占位，不提前请求 `container view`
 - **冷启动判定口径**：直接复用 `GET /api/imports/latest`；`404` 视为从未导入过，其余状态都视为已有导入记录，不额外新增初始化状态接口；1.17 已按此把首页串成「导入 → 关键收藏夹 → 收藏夹说明 → 工作区」
 - **初始化分流优先级**：先看本地是否已有来源收藏夹，再看最近一次导入状态。这样最近一次导入恰好 `running` / `failed` 时，不会把已经可读的工作区误拦在外面
-- **收藏夹说明完成态口径**：一期初始化只要求用户填一句 `purpose`，`purpose.trim()` 非空即 `profileCompleted = true`；`includeTopics / excludeTopics / keywords / notes` 保留在模型里但不要求手填，后续由 Agent 基于收藏夹样本自动草拟、用户微调确认
+- **收藏夹说明完成态口径**：`purpose.trim()` 非空即完成。Agent 只草拟 `includeTopics` / `excludeTopics`。
 - **初始化表单边界**：表单提交时仍走现有 `PUT /api/folder-profiles/:folderId`，结构化字段统一传空值，避免此刻推翻接口结构
 - **写回与同步口径**：B 站为主权来源；一切写回先落成 `sync_intents`，人工触发、单串行、保守冲突；`pending` 意图只做只读叠加，不写进 `source_*`；`item_sync_status` 废弃，同步状态由意图派生（见 [two-way-sync-design.md](file:///Users/dateng/pl-dashboard-2610/docs/two-way-sync-design.md)）

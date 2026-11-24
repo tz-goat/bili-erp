@@ -398,11 +398,6 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
                     items={[
                         { key: 'purpose', label: '用途', children: description?.purpose || '未填写' },
                         { key: 'include', label: '纳入主题', children: description?.includeTopics || '未填写' },
-                        {
-                            key: 'keywords',
-                            label: '关键词',
-                            children: description?.keywords.length ? description.keywords.join('、') : '未填写'
-                        },
                         { key: 'exclude', label: '排除主题', children: description?.excludeTopics || '未填写' }
                     ]}
                 />

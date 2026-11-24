@@ -17,7 +17,6 @@ const SYSTEM_PROMPT = `你是 B 站收藏夹整理助手，负责把「用途说
 只输出一个 JSON 对象，不要 markdown，不要解释。字段：
 - includeTopics: 字符串，逗号或顿号分隔的主题词，用于标题/简介子串匹配
 - excludeTopics: 字符串，逗号分隔，命中则整夹不作为候选
-- keywords: 字符串数组，与 includeTopics 互补的具体词条
 
 要求：词条要可解释、可命中，不要空泛词（如「视频」「相关」）；exclude 只在用途或样本明显排斥某类时再写。`
 
@@ -76,11 +75,8 @@ export function parseDraftPayload(rawJson) {
 
     const includeTopics = typeof parsed.includeTopics === 'string' ? parsed.includeTopics.trim() : ''
     const excludeTopics = typeof parsed.excludeTopics === 'string' ? parsed.excludeTopics.trim() : ''
-    const keywords = Array.isArray(parsed.keywords)
-        ? parsed.keywords.map((k) => (typeof k === 'string' ? k.trim() : '')).filter(Boolean)
-        : []
 
-    return { includeTopics, excludeTopics, keywords }
+    return { includeTopics, excludeTopics }
 }
 
 function stripJsonFence(text) {

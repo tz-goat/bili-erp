@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 
 import { ensureDataDirectory, SQLITE_DATABASE_PATH } from '../../config/env.js'
-import { SCHEMA, SQLITE_SCHEMA_STATEMENTS } from './schema.js'
+import { SCHEMA, SQLITE_SCHEMA_STATEMENTS, TABLES } from './schema.js'
 
 let databaseInstance = null
 
@@ -33,6 +33,7 @@ export function migrateDatabase() {
     }
 
     ensureMissingColumns(database)
+    dropRetiredColumns(database)
 
     return database
 }
@@ -52,6 +53,14 @@ function ensureMissingColumns(database) {
                 database.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnSql}`)
             }
         }
+    }
+}
+
+/** 旧库仍带着 keywords_json；建表语句不会改已有表，这里显式丢掉。 */
+function dropRetiredColumns(database) {
+    const columns = database.prepare(`PRAGMA table_info(${TABLES.folderProfiles})`).all()
+    if (columns.some((column) => column.name === 'keywords_json')) {
+        database.exec(`ALTER TABLE ${TABLES.folderProfiles} DROP COLUMN keywords_json`)
     }
 }
 

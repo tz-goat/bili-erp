@@ -170,7 +170,6 @@ export const SCHEMA = {
             folder_id: 'TEXT PRIMARY KEY REFERENCES source_folders(id)',
             include_topics: 'TEXT NOT NULL',
             exclude_topics: 'TEXT',
-            keywords_json: "TEXT NOT NULL DEFAULT '[]'",
             purpose: 'TEXT NOT NULL',
             notes: 'TEXT',
             completed_at: 'TEXT',

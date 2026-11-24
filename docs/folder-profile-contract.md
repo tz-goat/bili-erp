@@ -41,7 +41,6 @@ PUT /api/folder-profiles/:folderId
   "purpose": "收集前端工程实践与工具链资料",
   "includeTopics": "",
   "excludeTopics": "",
-  "keywords": [],
   "notes": ""
 }
 ```
@@ -49,9 +48,8 @@ PUT /api/folder-profiles/:folderId
 | 字段            | 必填 | 说明                                 |
 | --------------- | ---- | ------------------------------------ |
 | `purpose`       | 是   | 收藏夹用途 / 一句话说明              |
-| `includeTopics` | 否   | 结构化扩展字段，一期初始化阶段可为空 |
-| `excludeTopics` | 否   | 结构化扩展字段，一期初始化阶段可为空 |
-| `keywords`      | 否   | 结构化扩展字段，一期初始化阶段可为空 |
+| `includeTopics` | 否   | 纳入主题，逗号/顿号分隔，参与标题与简介子串匹配 |
+| `excludeTopics` | 否   | 排除主题，命中任一则整夹不作为候选 |
 | `notes`         | 否   | 补充说明，一期初始化阶段可为空       |
 
 ## 4. 草稿与完成态
@@ -87,7 +85,6 @@ PUT /api/folder-profiles/:folderId
     "purpose": "收集前端工程实践与工具链资料",
     "includeTopics": "",
     "excludeTopics": "",
-    "keywords": [],
     "notes": "",
     "profileCompleted": true,
     "completedAt": "2026-11-02 16:40:00",
@@ -146,18 +143,7 @@ PUT /api/folder-profiles/:folderId
 }
 ```
 
-### 8.2 `keywords` 不是数组
-
-返回 `400 Bad Request`：
-
-```json
-{
-  "error": "invalid_folder_profile_payload",
-  "message": "keywords must be an array of strings"
-}
-```
-
-### 8.3 字段类型不合法
+### 8.2 字段类型不合法
 
 同样返回 `400 Bad Request`，由服务端统一做 shape 校验。
 
@@ -224,7 +210,7 @@ AND completedAt != null
 
 实现落在 `apps/server/src/application/save-folder-profile.js`，几处细节在这里固定：
 
-- **Body 整份覆盖**：文本字段先 `trim` 再落库，`keywords` 去空白后过滤空串；任一字段 shape 不合法就整份拒绝，不做部分落库
+- **Body 整份覆盖**：文本字段先 `trim` 再落库；任一字段 shape 不合法就整份拒绝，不做部分落库。匹配词只认 `includeTopics` / `excludeTopics`
 - **校验顺序**：收藏夹不存在（404）→ payload 不合法（400）→ 不是关键收藏夹（409）
 - **`completed_at` 落库为 ISO**：库里存 ISO（UTC），接口返回本地时间 `YYYY-MM-DD HH:mm:ss`
 - **`created_at` 不在 upsert 时覆盖**：只刷新内容与 `updated_at`，保住「首次录入」时间

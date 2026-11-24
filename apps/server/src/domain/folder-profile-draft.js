@@ -11,7 +11,6 @@ export function createFolderProfileDraft(overrides = {}) {
     return {
         includeTopics: '',
         excludeTopics: '',
-        keywords: [],
         ...overrides
     }
 }

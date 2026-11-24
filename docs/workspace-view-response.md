@@ -75,7 +75,6 @@ sortOrder=desc
   "description": {
     "includeTopics": "React, TypeScript, 工程化",
     "excludeTopics": "产品访谈, 游戏解说",
-    "keywords": ["react", "typescript", "eslint"],
     "purpose": "收集前端工程实践与工具链资料",
     "notes": "优先保留能指导实际开发的内容"
   }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Checkbox, Form, Input, Menu, message, Result, Select, Spin, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Checkbox, Form, Input, Menu, message, Result, Spin, Tag, Typography } from 'antd'
 
 import { ApiError } from '../../api/client'
 import { draftFolderProfileStructure, saveFolderProfile } from '../../api/folder-profiles'
@@ -18,7 +18,7 @@ const profileLayoutStyle = {
     gap: 16,
     alignItems: 'start'
 }
-const emptyProfile: FolderProfileInput = { includeTopics: '', excludeTopics: '', keywords: [], purpose: '', notes: '' }
+const emptyProfile: FolderProfileInput = { includeTopics: '', excludeTopics: '', purpose: '', notes: '' }
 
 /**
  * 初始化入口页：把冷启动引导、导入轮询、关键收藏夹勾选、用途说明录入串成一条路。
@@ -276,7 +276,6 @@ function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
                                                 purpose: values.purpose.trim(),
                                                 includeTopics: (values.includeTopics ?? '').trim(),
                                                 excludeTopics: (values.excludeTopics ?? '').trim(),
-                                                keywords: values.keywords ?? [],
                                                 notes: ''
                                             })
                                             setLoadedProfileFolderId(null)
@@ -317,8 +316,7 @@ function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
                                                     })
                                                     form.setFieldsValue({
                                                         includeTopics: result.draft.includeTopics,
-                                                        excludeTopics: result.draft.excludeTopics,
-                                                        keywords: result.draft.keywords
+                                                        excludeTopics: result.draft.excludeTopics
                                                     })
                                                     message.success(
                                                         `已草拟词表（依据 ${result.meta.sampleCount} 条样本，请确认后保存）`
@@ -344,14 +342,6 @@ function FolderProfileStep({ gate }: { gate: InitializationGateState }) {
                                     </Form.Item>
                                     <Form.Item name="includeTopics" label="纳入主题">
                                         <Input.TextArea rows={2} placeholder="逗号分隔，参与标题/简介匹配" />
-                                    </Form.Item>
-                                    <Form.Item name="keywords" label="关键词">
-                                        <Select
-                                            mode="tags"
-                                            tokenSeparators={[',', '，', '、']}
-                                            placeholder="回车添加词条"
-                                            styles={{ root: { maxHeight: 120, overflowY: 'auto' } }}
-                                        />
                                     </Form.Item>
                                     <Form.Item name="excludeTopics" label="排除主题">
                                         <Input.TextArea rows={2} placeholder="命中则不作为候选" />
