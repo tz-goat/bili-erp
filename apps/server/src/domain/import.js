@@ -21,8 +21,11 @@ export const IMPORT_SCOPE = {
     all: 'all'
 }
 
-/** 一期固定按收藏夹导入。 */
-export const DEFAULT_IMPORT_SCOPE = IMPORT_SCOPE.folders
+/** 冷启动与重新导入默认拉收藏夹 + 稍后再看。 */
+export const DEFAULT_IMPORT_SCOPE = IMPORT_SCOPE.all
+
+/** 允许的导入范围；路由层非法值会直接 400。 */
+export const SUPPORTED_IMPORT_SCOPES = new Set(Object.values(IMPORT_SCOPE))
 
 /** 已有导入在跑时的错误标识，用于 POST 返回 409。 */
 export const IMPORT_ALREADY_RUNNING = 'import_already_running'
