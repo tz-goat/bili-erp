@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Form, Input, Modal, Select, message } from 'antd'
+import { Alert, Button, Form, Input, Modal, message } from 'antd'
 
 import { ApiError } from '../../api/client'
 import { draftFolderProfileStructure, saveFolderProfile } from '../../api/folder-profiles'
@@ -8,7 +8,6 @@ import type { FolderProfileInput } from '../../api/types'
 const emptyProfile: FolderProfileInput = {
     includeTopics: '',
     excludeTopics: '',
-    keywords: [],
     purpose: '',
     notes: ''
 }
@@ -24,7 +23,7 @@ type FolderProfileEditModalProps = {
 
 /**
  * 关键收藏夹说明编辑。
- * purpose 给人读；includeTopics / keywords / excludeTopics 才是归位匹配词表。
+ * purpose 给人读；includeTopics / excludeTopics 才是归位匹配词表。
  * notes 一期不暴露编辑，提交时原样带回，避免整份 PUT 把库里已有备注抹掉。
  */
 export function FolderProfileEditModal({
@@ -58,7 +57,6 @@ export function FolderProfileEditModal({
                 purpose: values.purpose ?? '',
                 includeTopics: values.includeTopics ?? '',
                 excludeTopics: values.excludeTopics ?? '',
-                keywords: values.keywords ?? [],
                 notes: initial?.notes ?? ''
             })
             onSaved()
@@ -112,8 +110,7 @@ export function FolderProfileEditModal({
                                 const result = await draftFolderProfileStructure(folderId, { purpose })
                                 form.setFieldsValue({
                                     includeTopics: result.draft.includeTopics,
-                                    excludeTopics: result.draft.excludeTopics,
-                                    keywords: result.draft.keywords
+                                    excludeTopics: result.draft.excludeTopics
                                 })
                                 message.success(`已草拟（${result.meta.sampleCount} 条样本），请确认后保存`)
                             } catch (err) {
@@ -141,15 +138,6 @@ export function FolderProfileEditModal({
                     extra="逗号或顿号分隔；会参与标题/简介的关键词匹配。"
                 >
                     <Input.TextArea rows={2} placeholder="例如：前端, 工程化, TypeScript" />
-                </Form.Item>
-                <Form.Item name="keywords" label="关键词" extra="结构化词条，与纳入主题合并成同一套命中词表。">
-                    <Select
-                        mode="tags"
-                        tokenSeparators={[',', '，', '、']}
-                        placeholder="输入后回车添加"
-                        // 词条多时选择器会无限长高，压住弹窗；固定高度内部滚动
-                        styles={{ root: { maxHeight: 90, overflowY: 'auto' } }}
-                    />
                 </Form.Item>
                 <Form.Item name="excludeTopics" label="排除主题" extra="命中任一排除词则整夹不作为候选。">
                     <Input.TextArea rows={2} placeholder="例如：游戏, 杂谈" />

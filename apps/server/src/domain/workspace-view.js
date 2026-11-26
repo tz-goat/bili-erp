@@ -37,7 +37,7 @@ export function createEmptySuggestionSummary() {
 
 /**
  * 列表页总是展示当前 decision 的单一快照。
- * 一期先把状态机压到最小：pending / confirmed / deferred。
+ * 状态只有 pending / confirmed。
  */
 export function createEmptyDecision() {
     return {
@@ -90,7 +90,6 @@ export function createEmptyWorkspaceView(overrides = {}) {
             totalItems: 0,
             pendingDecisionCount: 0,
             confirmedCount: 0,
-            deferredCount: 0,
             suggestionCoverageCount: 0,
             activeSourceCount: 0,
             ...(overrides.stats || {})

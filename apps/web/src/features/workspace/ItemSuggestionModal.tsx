@@ -1,4 +1,4 @@
-import { Alert, Button, List, Modal, Popconfirm, Space, Tag, Typography } from 'antd'
+import { Alert, Button, List, Modal, Popconfirm, Space, Typography } from 'antd'
 
 import type { SuggestionResult } from '../../api/types'
 
@@ -26,7 +26,7 @@ export function ItemSuggestionModal({
     return (
         <Modal title={`归位建议 · ${itemTitle}`} open={open} onCancel={onClose} footer={null} destroyOnHidden width={560}>
             {!result ? null : result.skipped ? (
-                <Alert type="warning" showIcon message={result.skipped.message} description={`原因码：${result.skipped.reason}`} />
+                <Alert type="warning" showIcon message={result.skipped.message} />
             ) : (
                 <List
                     dataSource={result.candidates}
@@ -60,16 +60,7 @@ export function ItemSuggestionModal({
                                         </Typography.Text>
                                     </Space>
                                 }
-                                description={
-                                    <Space direction="vertical" size={4}>
-                                        <Typography.Text type="secondary">{candidate.reason}</Typography.Text>
-                                        <Space size={4} wrap>
-                                            {candidate.evidenceTags.map((tag) => (
-                                                <Tag key={tag}>{tag}</Tag>
-                                            ))}
-                                        </Space>
-                                    </Space>
-                                }
+                                description={<Typography.Text type="secondary">{candidate.reason}</Typography.Text>}
                             />
                         </List.Item>
                     )}

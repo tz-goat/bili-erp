@@ -21,7 +21,6 @@ export function createFolderProfileInput(overrides = {}) {
         folderId: null,
         includeTopics: '',
         excludeTopics: '',
-        keywords: [],
         purpose: '',
         notes: '',
         ...overrides
@@ -35,7 +34,6 @@ export function createFolderProfile(overrides = {}) {
     return {
         includeTopics: '',
         excludeTopics: '',
-        keywords: [],
         purpose: '',
         notes: '',
         profileCompleted: false,

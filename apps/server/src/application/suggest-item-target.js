@@ -121,8 +121,7 @@ function listCompletedProfiles(database) {
             p.folder_id,
             f.title AS folder_title,
             p.include_topics,
-            p.exclude_topics,
-            p.keywords_json
+            p.exclude_topics
         FROM ${TABLES.folderProfiles} AS p
         JOIN ${TABLES.sourceFolders} AS f ON f.id = p.folder_id
         JOIN ${TABLES.keyFolders} AS k ON k.folder_id = p.folder_id
@@ -132,8 +131,7 @@ function listCompletedProfiles(database) {
         folderId: row.folder_id,
         folderTitle: row.folder_title,
         includeTopics: row.include_topics || '',
-        excludeTopics: row.exclude_topics || '',
-        keywords: parseKeywords(row.keywords_json)
+        excludeTopics: row.exclude_topics || ''
     }))
 }
 
@@ -184,13 +182,4 @@ function createSuggestionId(isoString) {
 
 function toCompactTimestamp(isoString) {
     return isoString.slice(0, 19).replace(/[-:T]/g, '')
-}
-
-function parseKeywords(rawJson) {
-    try {
-        const parsed = JSON.parse(rawJson)
-        return Array.isArray(parsed) ? parsed : []
-    } catch {
-        return []
-    }
 }

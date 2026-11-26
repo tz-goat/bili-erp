@@ -16,7 +16,7 @@ const databasePath = path.join(os.tmpdir(), `pl-dashboard-decision-test-${crypto
 process.env.SQLITE_DATABASE_PATH = databasePath
 
 const { getDatabase, migrateDatabase } = await import('../adapters/db/sqlite.js')
-const { confirmItemDecision, deferItemDecision } = await import('./confirm-item-decision.js')
+const { confirmItemDecision } = await import('./confirm-item-decision.js')
 
 const MID = '39640918'
 const NOW = '2026-11-10T02:00:00.000Z'
@@ -49,7 +49,7 @@ after(() => {
     }
 })
 
-describe('confirmItemDecision / deferItemDecision', () => {
+describe('confirmItemDecision', () => {
     test('confirm 写入目标收藏夹，并保留 suggestion group', async () => {
         const folderId = insertFolder({ sourceFolderId: '888', title: '前端工程' })
         const itemId = insertItem({ sourceVideoId: 'BV1', title: 'React 实践' })
@@ -77,30 +77,6 @@ describe('confirmItemDecision / deferItemDecision', () => {
         assert.equal(row.status, 'confirmed')
         assert.equal(row.chosen_folder_id, folderId)
         assert.equal(row.source_suggestion_group_id, suggestionGroupId)
-    })
-
-    test('defer 清空目标收藏夹', async () => {
-        const folderId = insertFolder({ sourceFolderId: '888', title: '前端工程' })
-        const itemId = insertItem({ sourceVideoId: 'BV1', title: 'React 实践' })
-
-        await confirmItemDecision({
-            itemId,
-            payload: { chosenFolderId: folderId }
-        })
-
-        const result = await deferItemDecision({
-            itemId,
-            payload: { note: '先搁置' }
-        })
-
-        assert.equal(result.decision.status, 'deferred')
-        assert.equal(result.decision.chosenFolderId, null)
-        assert.equal(result.decision.chosenFolderTitle, null)
-        assert.equal(result.decision.note, '先搁置')
-
-        const row = getDatabase().prepare(`SELECT * FROM ${TABLES.itemDecisions} WHERE item_id = ?`).get(itemId)
-        assert.equal(row.status, 'deferred')
-        assert.equal(row.chosen_folder_id, null)
     })
 
     test('收藏项不存在时返回 item_not_found', async () => {

@@ -56,8 +56,7 @@ function scoreProfile(profile, haystack) {
         return null
     }
 
-    // include_topics 是自由文本，按分隔符切词后与结构化的 keywords 合并成同一套词表
-    const matched = collectTerms([...splitTerms(profile.includeTopics), ...profile.keywords])
+    const matched = collectTerms(splitTerms(profile.includeTopics))
         .filter((term) => haystack.includes(term.needle))
 
     if (matched.length === 0) {

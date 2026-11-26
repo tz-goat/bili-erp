@@ -39,7 +39,6 @@ export type WorkspaceSidebar = {
 export type FolderProfileInput = {
     includeTopics: string
     excludeTopics: string
-    keywords: string[]
     purpose: string
     notes: string
 }
@@ -60,7 +59,6 @@ export type WorkspaceStats = {
     totalItems: number
     pendingDecisionCount: number
     confirmedCount: number
-    deferredCount: number
     suggestionCoverageCount: number
     activeSourceCount: number
 }
@@ -87,7 +85,7 @@ export type Pagination = {
     hasPreviousPage: boolean
 }
 
-export type DecisionStatus = 'pending' | 'confirmed' | 'deferred'
+export type DecisionStatus = 'pending' | 'confirmed'
 
 export type SuggestionTopCandidate = {
     folderId: string
@@ -148,7 +146,7 @@ export type SaveFolderProfileResult = {
 /** POST .../draft-structure：只返回草稿，不写库。 */
 export type FolderProfileDraftResult = {
     folderId: string
-    draft: Pick<FolderProfileInput, 'includeTopics' | 'excludeTopics' | 'keywords'>
+    draft: Pick<FolderProfileInput, 'includeTopics' | 'excludeTopics'>
     meta: { sampleCount: number; generatedBy: string }
 }
 

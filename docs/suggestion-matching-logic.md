@@ -29,13 +29,13 @@ suggestItemTarget                 (application/suggest-item-target.js)
 | 角色             | 数据来源                                    | 参与方式                 |
 | ---------------- | ------------------------------------------- | ------------------------ |
 | 被搜索文本       | `source_items.title` + `source_items.intro` | 拼成 haystack，全小写    |
-| 命中词表         | `folder_profiles.include_topics` + `keywords_json` | 提供 needle        |
+| 命中词表         | `folder_profiles.include_topics` | 提供 needle        |
 | 排除词           | `folder_profiles.exclude_topics`            | 一票否决                 |
 | 展示用收藏夹名   | `source_folders.title`                      | **不参与匹配**，仅回显   |
 
 两条容易误判的边界：
 
-- **`folder_profiles.purpose` / `notes` 不参与匹配。** 说明正文是给人和 Agent 读的自由文本，逐词拆开会引入大量噪音词（"这个"、"尽量"、"相关"）。一期只认 `include_topics` 与 `keywords` 这两个结构化程度更高的字段。
+- **`folder_profiles.purpose` / `notes` 不参与匹配。** 说明正文是给人和 Agent 读的自由文本。匹配只认 `include_topics`；`exclude_topics` 命中则整夹剔除。
 - **`source_folders.title` 不参与匹配。** 一个叫「前端工程」但 `include_topics` 为空的收藏夹，永远不会有候选。
 
 ## 3. 候选资格：谁才有资格被比

@@ -73,7 +73,6 @@ function findContainerRow(containerId, mid) {
             p.completed_at,
             p.include_topics,
             p.exclude_topics,
-            p.keywords_json,
             p.purpose,
             p.notes
         FROM ${TABLES.sourceFolders} AS f
@@ -96,7 +95,6 @@ function mapContainerRow(row) {
         description: row.purpose == null ? null : {
             includeTopics: row.include_topics || '',
             excludeTopics: row.exclude_topics || '',
-            keywords: parseKeywords(row.keywords_json),
             purpose: row.purpose || '',
             notes: row.notes || ''
         }
@@ -113,7 +111,6 @@ function countContainerStats(containerId) {
             COUNT(*) AS total_items,
             SUM(CASE WHEN d.status IS NULL OR d.status = $pendingStatus THEN 1 ELSE 0 END) AS pending_count,
             SUM(CASE WHEN d.status = $confirmedStatus THEN 1 ELSE 0 END) AS confirmed_count,
-            SUM(CASE WHEN d.status = $deferredStatus THEN 1 ELSE 0 END) AS deferred_count,
             SUM(CASE WHEN s.item_id IS NULL THEN 0 ELSE 1 END) AS suggestion_coverage_count
         FROM ${TABLES.sourceFolderItems} AS sfi
         LEFT JOIN ${TABLES.itemDecisions} AS d ON d.item_id = sfi.item_id
@@ -124,8 +121,7 @@ function countContainerStats(containerId) {
     `).get({
         containerId,
         pendingStatus: ITEM_DECISION_STATUS.pending,
-        confirmedStatus: ITEM_DECISION_STATUS.confirmed,
-        deferredStatus: ITEM_DECISION_STATUS.deferred
+        confirmedStatus: ITEM_DECISION_STATUS.confirmed
     })
 
     const totalItems = toCount(row.total_items)
@@ -134,7 +130,6 @@ function countContainerStats(containerId) {
         totalItems,
         pendingDecisionCount: toCount(row.pending_count),
         confirmedCount: toCount(row.confirmed_count),
-        deferredCount: toCount(row.deferred_count),
         suggestionCoverageCount: toCount(row.suggestion_coverage_count),
         // 统计口径只覆盖 is_active = 1，所以这里与 totalItems 恒等，但语义不同，保留独立字段
         activeSourceCount: totalItems

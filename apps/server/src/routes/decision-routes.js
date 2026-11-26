@@ -1,6 +1,6 @@
 import express from 'express'
 
-import { confirmItemDecision, deferItemDecision } from '../application/confirm-item-decision.js'
+import { confirmItemDecision } from '../application/confirm-item-decision.js'
 import {
     ITEM_NOT_FOUND,
     INVALID_TARGET_FOLDER,
@@ -14,7 +14,7 @@ const ERROR_STATUS = {
 }
 
 /**
- * 收藏项决定路由：confirm / defer 拆开，避免用 status 字段混传两种语义。
+ * 收藏项决定路由：只保留确认目标收藏夹。
  * 挂在 /api/items 下，与建议路由共用资源前缀。
  */
 export function createDecisionRoutes() {
@@ -23,21 +23,6 @@ export function createDecisionRoutes() {
     router.put('/:itemId/decision/confirm', async (req, res) => {
         try {
             const result = await confirmItemDecision({ itemId: req.params.itemId, payload: req.body })
-
-            if (result.error) {
-                res.status(ERROR_STATUS[result.error] || 400).json(result)
-                return
-            }
-
-            res.json(result)
-        } catch (error) {
-            res.status(500).json({ error: error.message })
-        }
-    })
-
-    router.put('/:itemId/decision/defer', async (req, res) => {
-        try {
-            const result = await deferItemDecision({ itemId: req.params.itemId, payload: req.body })
 
             if (result.error) {
                 res.status(ERROR_STATUS[result.error] || 400).json(result)

@@ -54,7 +54,7 @@ export async function saveFolderProfile({ folderId, payload } = {}) {
 
 /**
  * Body 会整份覆盖旧说明，所以这里做一次严格 shape 校验：
- * 文本字段先 trim 成字符串，keywords 必须是字符串数组，否则整份拒绝而不是部分落库。
+ * 文本字段先 trim 成字符串，否则整份拒绝而不是部分落库。
  */
 function normalizePayload(payload) {
     const body = payload ?? {}
@@ -65,15 +65,10 @@ function normalizePayload(payload) {
         }
     }
 
-    if (!Array.isArray(body.keywords) || !body.keywords.every((keyword) => typeof keyword === 'string')) {
-        return { errorMessage: 'keywords must be an array of strings' }
-    }
-
     return {
         values: {
             includeTopics: (body.includeTopics ?? '').trim(),
             excludeTopics: (body.excludeTopics ?? '').trim(),
-            keywords: body.keywords.map((keyword) => keyword.trim()).filter(Boolean),
             purpose: (body.purpose ?? '').trim(),
             notes: (body.notes ?? '').trim()
         }
@@ -115,17 +110,15 @@ function upsertFolderProfile(database, { folderId, profileInput, completedAt, no
                 folder_id,
                 include_topics,
                 exclude_topics,
-                keywords_json,
                 purpose,
                 notes,
                 completed_at,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(folder_id) DO UPDATE SET
                 include_topics = excluded.include_topics,
                 exclude_topics = excluded.exclude_topics,
-                keywords_json = excluded.keywords_json,
                 purpose = excluded.purpose,
                 notes = excluded.notes,
                 completed_at = excluded.completed_at,
@@ -134,7 +127,6 @@ function upsertFolderProfile(database, { folderId, profileInput, completedAt, no
             folderId,
             profileInput.includeTopics,
             profileInput.excludeTopics,
-            JSON.stringify(profileInput.keywords),
             profileInput.purpose,
             profileInput.notes,
             completedAt,
