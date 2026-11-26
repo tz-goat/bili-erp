@@ -9,6 +9,7 @@ import { createFolderProfileRoutes } from '../routes/folder-profile-routes.js'
 import { createImportRoutes } from '../routes/import-routes.js'
 import { createKeyFoldersRoutes } from '../routes/key-folders-routes.js'
 import { createSuggestionRoutes } from '../routes/suggestion-routes.js'
+import { createWatchLaterRoutes } from '../routes/watch-later-routes.js'
 import { createWorkspaceRoutes } from '../routes/workspace-routes.js'
 import { createBasicAuthMiddleware } from './basic-auth.js'
 
@@ -37,6 +38,7 @@ export function createApp() {
     // 建议与决定都以「收藏项」为主体资源，挂在 /api/items 下，不塞进 workspace 命名空间。
     app.use('/api/items', createSuggestionRoutes())
     app.use('/api/items', createDecisionRoutes())
+    app.use('/api/watch-later', createWatchLaterRoutes())
 
     mountWebBuild(app)
 
