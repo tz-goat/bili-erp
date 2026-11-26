@@ -18,9 +18,14 @@ export async function fetchLatestImportRun() {
     }
 }
 
-/** 触发一次来源导入，成功后立刻回 runId 给前端进入轮询。 */
-export function startImport() {
-    return request<ImportRunSummary>('/api/imports', { method: 'POST', body: JSON.stringify({}) })
+export type ImportScope = 'folders' | 'watch_later' | 'all'
+
+/** 触发一次来源导入，默认拉收藏夹 + 稍后再看；成功后立刻回 runId 给前端进入轮询。 */
+export function startImport(scope: ImportScope = 'all') {
+    return request<ImportRunSummary>('/api/imports', {
+        method: 'POST',
+        body: JSON.stringify({ scope })
+    })
 }
 
 /** 导入进度轮询直接读 run 资源，不额外发明一套专用状态接口。 */

@@ -59,7 +59,7 @@ export function InitializationEntry({ gate }: { gate: InitializationGateState })
                 <Result
                     status={gate.latestRun?.status === 'failed' ? 'warning' : 'info'}
                     title={gate.latestRun?.status === 'failed' ? '最近一次导入未完成' : '先完成一次来源导入'}
-                    subTitle="工作区、关键收藏夹和说明表单都依赖本地来源数据；首次使用需要先把收藏夹导入到 SQLite。"
+                    subTitle="工作区、关键收藏夹和说明表单都依赖本地来源数据；首次使用会导入收藏夹与稍后再看。"
                     extra={
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                             <Button

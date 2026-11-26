@@ -19,6 +19,7 @@ import type { CSSProperties } from 'react'
 
 import { confirmItemDecision, generateItemSuggestions } from '../../api/items'
 import { setKeyFolders } from '../../api/key-folders'
+import { transferWatchLaterItem } from '../../api/watch-later'
 import type {
     DecisionStatus,
     SidebarItem,
@@ -30,6 +31,7 @@ import type {
 } from '../../api/types'
 import { FolderProfileEditModal } from './FolderProfileEditModal'
 import { ItemSuggestionModal } from './ItemSuggestionModal'
+import { TransferWatchLaterModal } from './TransferWatchLaterModal'
 import { useWorkspaceView } from './useWorkspaceView'
 
 const emptyStyle = { marginTop: 80 }
@@ -74,18 +76,21 @@ const DECISION_COLOR: Record<DecisionStatus, string> = {
 type ColumnActions = {
     busyItemId: string | null
     onGenerate: (item: WorkspaceViewItem) => void
+    onTransfer: (item: WorkspaceViewItem) => void
 }
+
+type ColumnMode = 'folderOrganize' | 'watchLater' | 'keyFolder'
 
 /**
  * 列对齐旧原型 folder_detail.ejs，去掉本地库未存的三方计数（播放 / 收藏 / 弹幕）。
  * 三列排序一律走服务端：这里只声明 sorter: true 并受控 sortOrder，
  * 不给比较函数——那只会排当前这一页，且时长按 MM:SS 文本比较也不是数值序。
- * 关键收藏夹是归位目标，不在本夹内做整理操作，故隐藏整理状态 / 建议摘要 / 操作。
+ * 关键收藏夹是归位目标，不在本夹内做整理操作；稍后再看只暴露本地转存。
  */
 function createColumns(
     sort: SortState,
     actions: ColumnActions,
-    options: { showOrganizeColumns: boolean }
+    mode: ColumnMode
 ): TableProps<WorkspaceViewItem>['columns'] {
     const resolveSortOrder = (key: WorkspaceSortBy): SortOrder => {
         if (!sort || sort.sortBy !== key) {
@@ -130,7 +135,7 @@ function createColumns(
             render: (value: string | null) => value ?? '-'
         },
         {
-            title: '收藏时间',
+            title: mode === 'watchLater' ? '添加时间' : '收藏时间',
             dataIndex: 'favTime',
             key: 'favTime',
             width: 160,
@@ -151,8 +156,30 @@ function createColumns(
         }
     ]
 
-    if (!options.showOrganizeColumns) {
+    if (mode === 'keyFolder') {
         return columns
+    }
+
+    if (mode === 'watchLater') {
+        return [
+            ...columns,
+            {
+                title: '操作',
+                key: 'actions',
+                fixed: 'right',
+                width: 100,
+                render: (_, item) => (
+                    <Button
+                        type="link"
+                        size="small"
+                        loading={actions.busyItemId === item.id}
+                        onClick={() => actions.onTransfer(item)}
+                    >
+                        转存
+                    </Button>
+                )
+            }
+        ]
     }
 
     return [
@@ -214,6 +241,7 @@ function createColumns(
 type WorkspaceDetailProps = {
     container: SidebarItem | null
     keyFolderIds: string[]
+    transferFolders: SidebarItem[]
     onSidebarReload: () => void
 }
 
@@ -222,7 +250,7 @@ type WorkspaceDetailProps = {
  * 头部身份标签取自左栏已加载的 sidebar item（零额外请求），容器级统计与收藏项表格由 container view 接口拉取；
  * 二者都以「当前容器」为准，所以切换容器时由父级用 key 重挂载，分页与排序状态自然回到该容器的初始态。
  */
-export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: WorkspaceDetailProps) {
+export function WorkspaceDetail({ container, keyFolderIds, transferFolders, onSidebarReload }: WorkspaceDetailProps) {
     const [page, setPage] = useState(1)
     const [keywordInput, setKeywordInput] = useState('')
     const [keyword, setKeyword] = useState('')
@@ -235,6 +263,8 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
         result: SuggestionResult
     } | null>(null)
     const [confirmingFolderId, setConfirmingFolderId] = useState<string | null>(null)
+    const [transferItem, setTransferItem] = useState<WorkspaceViewItem | null>(null)
+    const [transferring, setTransferring] = useState(false)
 
     const { view, loading, error, reload } = useWorkspaceView(container?.id ?? null, {
         page,
@@ -251,9 +281,11 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
     const profileCompleted = viewContainer?.profileCompleted ?? container.profileCompleted
     // 关键标记以左栏为准：升格后 sidebar 先刷新，view 里的 isKeyFolder 还是旧值
     const isKeyFolder = container.isKeyFolder
+    const isWatchLater = container.type === 'watch_later'
     const description = viewContainer?.description
     const canUnmark = keyFolderIds.length > 1
     const pagination = view?.list.pagination
+    const columnMode: ColumnMode = isWatchLater ? 'watchLater' : isKeyFolder ? 'keyFolder' : 'folderOrganize'
 
     const handleTableChange: TableProps<WorkspaceViewItem>['onChange'] = (_pagination, _filters, sorter) => {
         const activeSorter = Array.isArray(sorter) ? sorter[0] : sorter
@@ -304,13 +336,38 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
         try {
             const result = await generateItemSuggestions(item.id, {
                 contextContainerId: container.id,
-                contextType: 'folder'
+                contextType: isWatchLater ? 'watch_later' : 'folder'
             })
             setSuggestionModal({ item, result })
             reload()
         } catch (err) {
             message.error(err instanceof Error ? err.message : '生成建议失败')
         } finally {
+            setBusyItemId(null)
+        }
+    }
+
+    const handleTransferConfirm = async (targetFolderId: string) => {
+        if (!transferItem) {
+            return
+        }
+
+        setTransferring(true)
+        setBusyItemId(transferItem.id)
+        try {
+            const result = await transferWatchLaterItem(transferItem.id, { targetFolderId })
+            message.success(
+                result.watchLater.targetFolderTitle
+                    ? `已转存到「${result.watchLater.targetFolderTitle}」`
+                    : '已记录本地转存'
+            )
+            setTransferItem(null)
+            onSidebarReload()
+            reload()
+        } catch (err) {
+            message.error(err instanceof Error ? err.message : '转存失败')
+        } finally {
+            setTransferring(false)
             setBusyItemId(null)
         }
     }
@@ -382,23 +439,31 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
             <Space style={metaStyle} size={8} wrap>
                 <Tag color="blue">{container.type}</Tag>
                 {isKeyFolder && <Tag color="geekblue">关键收藏夹</Tag>}
-                <Tag color={profileCompleted ? 'green' : 'default'}>
-                    {profileCompleted ? '说明已完成' : '说明未完成'}
-                </Tag>
+                {!isWatchLater && (
+                    <Tag color={profileCompleted ? 'green' : 'default'}>
+                        {profileCompleted ? '说明已完成' : '说明未完成'}
+                    </Tag>
+                )}
                 {container.sourceFolderId && (
                     <Typography.Text type="secondary">来源 ID：{container.sourceFolderId}</Typography.Text>
                 )}
             </Space>
             {view && (
                 <Space size={16} wrap style={statsStyle}>
-                    <Typography.Text type="secondary">收藏项 {view.stats.totalItems}</Typography.Text>
-                    <Typography.Text type="secondary">待确认 {view.stats.pendingDecisionCount}</Typography.Text>
-                    <Typography.Text type="secondary">已确认 {view.stats.confirmedCount}</Typography.Text>
-                    <Typography.Text type="secondary">已生成建议 {view.stats.suggestionCoverageCount}</Typography.Text>
+                    {isWatchLater ? (
+                        <Typography.Text type="secondary">待处理 {view.stats.totalItems}</Typography.Text>
+                    ) : (
+                        <>
+                            <Typography.Text type="secondary">收藏项 {view.stats.totalItems}</Typography.Text>
+                            <Typography.Text type="secondary">待确认 {view.stats.pendingDecisionCount}</Typography.Text>
+                            <Typography.Text type="secondary">已确认 {view.stats.confirmedCount}</Typography.Text>
+                            <Typography.Text type="secondary">已生成建议 {view.stats.suggestionCoverageCount}</Typography.Text>
+                        </>
+                    )}
                 </Space>
             )}
             <Card
-                title="收藏项"
+                title={isWatchLater ? '待处理项' : '收藏项'}
                 extra={
                     <Input.Search
                         allowClear
@@ -432,15 +497,24 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
                                 sort,
                                 {
                                     busyItemId,
-                    onGenerate: handleGenerate
-                },
-                                { showOrganizeColumns: !isKeyFolder }
+                                    onGenerate: handleGenerate,
+                                    onTransfer: setTransferItem
+                                },
+                                columnMode
                             )}
                             dataSource={view?.list.items ?? []}
                             pagination={false}
                             scroll={{ x: 'max-content' }}
                             onChange={handleTableChange}
-                            locale={{ emptyText: <Empty description="当前收藏夹暂无收藏项" /> }}
+                            locale={{
+                                emptyText: (
+                                    <Empty
+                                        description={
+                                            isWatchLater ? '稍后再看池暂无待处理项' : '当前收藏夹暂无收藏项'
+                                        }
+                                    />
+                                )
+                            }}
                         />
                         {pagination && pagination.total > 0 && (
                             <Pagination
@@ -477,6 +551,15 @@ export function WorkspaceDetail({ container, keyFolderIds, onSidebarReload }: Wo
                 confirmingFolderId={confirmingFolderId}
                 onClose={() => setSuggestionModal(null)}
                 onConfirm={handleConfirmCandidate}
+            />
+
+            <TransferWatchLaterModal
+                open={transferItem != null}
+                itemTitle={transferItem?.title ?? ''}
+                folders={transferFolders}
+                confirming={transferring}
+                onClose={() => setTransferItem(null)}
+                onConfirm={handleTransferConfirm}
             />
         </>
     )
