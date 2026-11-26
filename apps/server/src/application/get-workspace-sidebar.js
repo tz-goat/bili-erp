@@ -2,6 +2,7 @@ import { DEFAULT_BILI_MID } from '../config/env.js'
 import { getDatabase, migrateDatabase } from '../adapters/db/sqlite.js'
 import { TABLES } from '../adapters/db/schema.js'
 import { ITEM_DECISION_STATUS } from '../domain/item-decision.js'
+import { WATCH_LATER_STATUS } from '../domain/watch-later.js'
 import { WORKSPACE_CONTAINER_TYPES } from '../domain/workspace-view.js'
 import {
     createEmptyWorkspaceSidebar,
@@ -12,7 +13,7 @@ import {
 
 /**
  * 工作区左栏的唯一数据来源。
- * 一次查完收藏夹、关键标记、说明完成态与条目计数，
+ * 一次查完稍后再看待处理、收藏夹、关键标记、说明完成态与条目计数，
  * 让前端不用再打多次接口自己拼分区和默认选中项。
  */
 export async function getWorkspaceSidebar({ mid = DEFAULT_BILI_MID } = {}) {
@@ -21,15 +22,15 @@ export async function getWorkspaceSidebar({ mid = DEFAULT_BILI_MID } = {}) {
     const folderItems = listFolderRows(mid).map(mapFolderRowToSidebarItem)
     const keyFolderItems = folderItems.filter((item) => item.isKeyFolder)
     const normalFolderItems = folderItems.filter((item) => !item.isKeyFolder)
+    const watchLaterItem = buildWatchLaterSidebarItem(countPendingWatchLater())
 
     return createEmptyWorkspaceSidebar({
         sections: [
-            // 一期导入还不覆盖稍后再看池，这里先给出稳定分区但标记为不可用。
             createSidebarSection({
                 id: WORKSPACE_SIDEBAR_SECTION_IDS.watchLater,
                 title: '稍后再看池',
-                enabled: false,
-                items: []
+                enabled: true,
+                items: [watchLaterItem]
             }),
             createSidebarSection({
                 id: WORKSPACE_SIDEBAR_SECTION_IDS.keyFolders,
@@ -42,7 +43,7 @@ export async function getWorkspaceSidebar({ mid = DEFAULT_BILI_MID } = {}) {
                 items: normalFolderItems
             })
         ],
-        defaultContainerId: resolveDefaultContainerId(keyFolderItems, normalFolderItems)
+        defaultContainerId: resolveDefaultContainerId(watchLaterItem, keyFolderItems, normalFolderItems)
     })
 }
 
@@ -95,7 +96,6 @@ function mapFolderRowToSidebarItem(row) {
         sourceFolderId: row.source_folder_id,
         sourceFid: row.source_fid,
         isKeyFolder: Boolean(row.is_key_folder),
-        // 完成态直接认服务端记录的 completed_at，避免各处重新推导说明是否填齐。
         profileCompleted: Boolean(row.completed_at),
         itemCount,
         pendingCount: Number(row.pending_count) || 0,
@@ -104,10 +104,46 @@ function mapFolderRowToSidebarItem(row) {
 }
 
 /**
- * 默认选中规则固化在服务端，前端不必再实现「待处理入口优先」这套判断。
- * 一期稍后再看池不可用，所以只在关键收藏夹和普通收藏夹之间取值。
+ * 待处理 = 来源仍 active，且本地状态缺失或仍为 pending。
+ * transferred / deferred 已离开待处理入口，但仍保留 source_watch_later_items。
  */
-function resolveDefaultContainerId(keyFolderItems, normalFolderItems) {
+function countPendingWatchLater() {
+    const row = getDatabase().prepare(`
+        SELECT COUNT(*) AS pending_count
+        FROM ${TABLES.sourceWatchLaterItems} AS swl
+        LEFT JOIN ${TABLES.watchLaterState} AS wls ON wls.item_id = swl.item_id
+        WHERE swl.is_active = 1
+          AND (wls.status IS NULL OR wls.status = $pendingStatus)
+    `).get({
+        pendingStatus: WATCH_LATER_STATUS.pending
+    })
+
+    return Number(row?.pending_count) || 0
+}
+
+function buildWatchLaterSidebarItem(pendingCount) {
+    return createSidebarContainerItem({
+        id: WORKSPACE_CONTAINER_TYPES.watchLater,
+        type: WORKSPACE_CONTAINER_TYPES.watchLater,
+        title: '稍后再看池',
+        sourceFolderId: null,
+        sourceFid: null,
+        isKeyFolder: false,
+        profileCompleted: false,
+        itemCount: pendingCount,
+        pendingCount,
+        isEmpty: pendingCount === 0
+    })
+}
+
+/**
+ * 默认选中：有待处理的稍后再看优先，否则关键收藏夹，再普通收藏夹。
+ */
+function resolveDefaultContainerId(watchLaterItem, keyFolderItems, normalFolderItems) {
+    if (watchLaterItem.itemCount > 0) {
+        return watchLaterItem.id
+    }
+
     const firstAvailableItem = keyFolderItems[0] || normalFolderItems[0]
     return firstAvailableItem ? firstAvailableItem.id : null
 }

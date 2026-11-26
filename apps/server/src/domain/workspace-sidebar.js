@@ -21,8 +21,7 @@ export const DEFAULT_WORKSPACE_SIDEBAR_SECTION_ORDER = [
 ]
 
 /**
- * 稍后再看池尚未接入时，也保留一个稳定的 disabled 分区。
- * 这样前后续版本可以复用同一份 response shape。
+ * 左栏分区工厂；稍后再看接入后默认 enabled，冷启动无数据时仍可返回空 items。
  */
 export function createSidebarSection(overrides = {}) {
     return {
