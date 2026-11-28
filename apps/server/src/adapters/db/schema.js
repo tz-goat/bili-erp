@@ -49,6 +49,7 @@ export const SCHEMA = {
             finished_at: 'TEXT',
             folder_count: 'INTEGER NOT NULL DEFAULT 0',
             item_count: 'INTEGER NOT NULL DEFAULT 0',
+            watch_later_item_count: 'INTEGER',
             error_message: 'TEXT',
             created_at: "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"
         },

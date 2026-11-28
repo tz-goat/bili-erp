@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 
 import { fetchAllFolderItems, fetchCreatedFolders } from '../adapters/bili/folders.js'
 import { isThrottledBiliError } from '../adapters/bili/request-pacing.js'
+import { fetchWatchLaterList, mapToviewEntryToMedia } from '../adapters/bili/watch-later.js'
 import { getDatabase, migrateDatabase, withTransaction } from '../adapters/db/sqlite.js'
 import { TABLES } from '../adapters/db/schema.js'
 import { IMPORT_FOLDER_CONCURRENCY } from '../config/env.js'
@@ -12,18 +13,23 @@ import {
     DEFAULT_IMPORT_SCOPE,
     IMPORT_ALREADY_RUNNING,
     IMPORT_SCOPE,
-    IMPORT_STATUS
+    IMPORT_STATUS,
+    SUPPORTED_IMPORT_SCOPES
 } from '../domain/import.js'
 import { mapWithConcurrencyLimit } from './request-pool.js'
 
 const runningImports = new Map()
 
 /**
- * 一期只支持收藏夹导入，其他 scope 先明确拒绝，避免调用方误以为稍后再看已接通。
+ * 启动一次导入 run。scope 决定本轮拉收藏夹、稍后再看，或两者都拉。
  */
 export async function startImport({ mid, scope = DEFAULT_IMPORT_SCOPE }) {
-    if (scope !== IMPORT_SCOPE.folders) {
-        throw new Error(`unsupported import scope: ${scope}`)
+    const normalizedScope = typeof scope === 'string' && scope.trim()
+        ? scope.trim()
+        : DEFAULT_IMPORT_SCOPE
+
+    if (!SUPPORTED_IMPORT_SCOPES.has(normalizedScope)) {
+        throw new Error(`unsupported import scope: ${normalizedScope}`)
     }
 
     migrateDatabase()
@@ -59,7 +65,7 @@ export async function startImport({ mid, scope = DEFAULT_IMPORT_SCOPE }) {
         startedAt
     })
 
-    const runningPromise = executeImportRun({ runId, mid })
+    const runningPromise = executeImportRun({ runId, mid, scope: normalizedScope })
     runningImports.set(runId, { runId, mid, promise: runningPromise })
 
     runningPromise.finally(() => {
@@ -89,6 +95,7 @@ export async function getImportRun(runId) {
             finished_at,
             folder_count,
             item_count,
+            watch_later_item_count,
             error_message
         FROM ${TABLES.importRuns}
         WHERE id = $runId
@@ -116,6 +123,7 @@ export async function getLatestImportRun(mid) {
             finished_at,
             folder_count,
             item_count,
+            watch_later_item_count,
             error_message
         FROM ${TABLES.importRuns}
         WHERE source_mid = $sourceMid
@@ -131,43 +139,81 @@ export async function getLatestImportRun(mid) {
 }
 
 /**
- * 导入主流程：拉收藏夹列表 → 逐个拉内容并落库 → 收口 run 状态。
- * 边界：单个收藏夹失败只记 warning 不中断整轮（常见于私密或异常收藏夹）；
- * 一旦命中上游限流（412/429）则整体中止，避免在已被限流的端点上继续加压。
+ * 导入主流程按 scope 分支：
+ * - folders：只拉收藏夹（兼容旧调用）
+ * - watch_later：只拉稍后再看
+ * - all：先收藏夹再稍后再看，同一 run 收口
+ * 限流仍整轮 failed；单夹 / toview 普通失败不软失效对应来源。
  */
-async function executeImportRun({ runId, mid }) {
-    // 限流后请求池还会继续取后续收藏夹，靠这个标记让它们直接短路，不再发出任何请求
+async function executeImportRun({ runId, mid, scope }) {
     const throttle = { aborted: false, message: null }
+    const includeFolders = scope === IMPORT_SCOPE.folders || scope === IMPORT_SCOPE.all
+    const includeWatchLater = scope === IMPORT_SCOPE.watchLater || scope === IMPORT_SCOPE.all
 
     try {
-        const folders = await fetchCreatedFolders(mid)
-        const folderResults = await mapWithConcurrencyLimit(folders, {
-            concurrency: IMPORT_FOLDER_CONCURRENCY,
-            // 下标即平台返回顺序，直接存下来，左栏才能跟着上游顺序走
-            worker: async (folder, folderIndex) => {
-                if (throttle.aborted) {
-                    return { folderId: createFolderId(folder.id), importedRelationCount: 0, warning: null }
+        let folderCount = 0
+        let itemCount = 0
+        let warnings = []
+        let failedFolderIds = []
+        let softInactivateFolders = false
+        let watchLaterItemCount = null
+        let softInactivateWatchLater = false
+
+        if (includeFolders) {
+            const folders = await fetchCreatedFolders(mid)
+            const folderResults = await mapWithConcurrencyLimit(folders, {
+                concurrency: IMPORT_FOLDER_CONCURRENCY,
+                worker: async (folder, folderIndex) => {
+                    if (throttle.aborted) {
+                        return { folderId: createFolderId(folder.id), importedRelationCount: 0, warning: null }
+                    }
+
+                    return importFolderSnapshot({ runId, mid, folder, sortOrder: folderIndex, throttle })
                 }
+            })
 
-                return importFolderSnapshot({ runId, mid, folder, sortOrder: folderIndex, throttle })
+            if (throttle.aborted) {
+                finalizeFailedRun({ runId, error: new Error(`上游限流，已中止本轮导入：${throttle.message}`) })
+                return
             }
-        })
 
-        if (throttle.aborted) {
-            finalizeFailedRun({ runId, error: new Error(`上游限流，已中止本轮导入：${throttle.message}`) })
-            return
+            folderCount = folders.length
+            itemCount = sumImportedRelationCount(folderResults)
+            warnings = collectFolderImportWarnings(folderResults)
+            failedFolderIds = collectFailedFolderIds(folderResults)
+            softInactivateFolders = true
+        }
+
+        if (includeWatchLater) {
+            const watchLaterResult = await importWatchLaterSnapshot({ runId, throttle })
+
+            if (throttle.aborted) {
+                finalizeFailedRun({ runId, error: new Error(`上游限流，已中止本轮导入：${throttle.message}`) })
+                return
+            }
+
+            if (watchLaterResult.ok) {
+                watchLaterItemCount = watchLaterResult.importedCount
+                softInactivateWatchLater = true
+            } else if (watchLaterResult.warning) {
+                warnings = [...warnings, watchLaterResult.warning]
+                watchLaterItemCount = null
+            }
         }
 
         finalizeCompletedRun({
             runId,
             mid,
-            folderCount: folders.length,
-            itemCount: sumImportedRelationCount(folderResults),
-            warnings: collectFolderImportWarnings(folderResults),
-            failedFolderIds: collectFailedFolderIds(folderResults)
+            folderCount,
+            itemCount,
+            watchLaterItemCount,
+            warnings,
+            failedFolderIds,
+            softInactivateFolders,
+            softInactivateWatchLater
         })
     } catch (error) {
-        finalizeFailedRun({ runId, mid, error })
+        finalizeFailedRun({ runId, error })
     }
 }
 
@@ -175,8 +221,6 @@ async function executeImportRun({ runId, mid }) {
  * 单个收藏夹的抓取与落库被收成一个独立单元：
  * 这样外层只负责任务调度，单夹失败也能稳定退化成 warning；
  * 命中限流则把 throttle 标记置位，由外层统一决定中止整轮。
- * 收藏夹自身快照先单独落库，与内容是否拉取成功解耦，
- * 否则本轮内容失败时它的标题与排序会停在上一轮甚至为空。
  */
 async function importFolderSnapshot({ runId, mid, folder, sortOrder, throttle }) {
     const folderId = createFolderId(folder.id)
@@ -201,7 +245,6 @@ async function importFolderSnapshot({ runId, mid, folder, sortOrder, throttle })
             warning: null
         }
     } catch (error) {
-        // 限流是本轮整体的上游状态，不是这个收藏夹本身有问题，继续跑只会扩大影响
         if (isThrottledBiliError(error)) {
             throttle.aborted = true
             throttle.message = `${folder.title || folder.id}（${error.message}）`
@@ -225,8 +268,41 @@ async function importFolderSnapshot({ runId, mid, folder, sortOrder, throttle })
 }
 
 /**
- * 上游偶尔会混入空洞项，这里在真正写库前先过滤，避免把无主键的脏数据带进事务。
+ * 稍后再看整池一次拉完。失败策略对齐单夹：普通错误记 warning 且本轮不软失效；限流中止整轮。
  */
+async function importWatchLaterSnapshot({ runId, throttle }) {
+    try {
+        const { list } = await fetchWatchLaterList()
+        const medias = list
+            .map(mapToviewEntryToMedia)
+            .filter((media) => media?.id !== undefined && media?.id !== null)
+
+        withTransaction((database) => {
+            for (const media of medias) {
+                upsertItem(database, media)
+                upsertWatchLaterItem(database, { runId, media })
+            }
+        })
+
+        return { ok: true, importedCount: medias.length, warning: null }
+    } catch (error) {
+        if (isThrottledBiliError(error)) {
+            throttle.aborted = true
+            throttle.message = `稍后再看（${error.message}）`
+            return { ok: false, importedCount: 0, warning: null }
+        }
+
+        return {
+            ok: false,
+            importedCount: 0,
+            warning: {
+                title: '稍后再看',
+                message: error.message
+            }
+        }
+    }
+}
+
 async function fetchImportableFolderItems(folderId) {
     return (await fetchAllFolderItems(folderId)).filter((media) => {
         return media?.id !== undefined && media?.id !== null
@@ -253,32 +329,56 @@ function collectFailedFolderIds(folderResults) {
 
 /**
  * 成功收口本轮导入。
- * 关键副作用：把本轮未再出现的归属关系软失效（is_active = 0）而非物理删除，
- * 以保留用户在平台侧已移除、但本地仍有整理记录的历史。
- * 例外：本轮拉取失败的收藏夹不参与软失效，否则一次网络抖动就会把整夹内容清空。
+ * 软失效按本轮实际成功拉到的来源分别开关，避免 toview 失败误清稍后再看，
+ * 或仅导入稍后再看时误清收藏夹归属。
  */
-function finalizeCompletedRun({ runId, mid, folderCount, itemCount, warnings, failedFolderIds }) {
+function finalizeCompletedRun({
+    runId,
+    mid,
+    folderCount,
+    itemCount,
+    watchLaterItemCount,
+    warnings,
+    failedFolderIds,
+    softInactivateFolders,
+    softInactivateWatchLater
+}) {
     const finishedAt = nowIsoString()
-    // 失败夹数量不定，这里改用位置参数，空数组时不拼这段条件
     const excludeFailedFoldersSql = failedFolderIds.length > 0
         ? `AND folder_id NOT IN (${failedFolderIds.map(() => '?').join(', ')})`
         : ''
 
     withTransaction((database) => {
-        database.prepare(`
-            UPDATE ${TABLES.sourceFolderItems}
-            SET
-                is_active = 0,
-                updated_at = ?
-            WHERE folder_id IN (
-                SELECT id
-                FROM ${TABLES.sourceFolders}
-                WHERE source_mid = ?
-            )
-            AND COALESCE(last_seen_import_run_id, '') != ?
-            AND is_active = 1
-            ${excludeFailedFoldersSql}
-        `).run(finishedAt, mid, runId, ...failedFolderIds)
+        if (softInactivateFolders) {
+            database.prepare(`
+                UPDATE ${TABLES.sourceFolderItems}
+                SET
+                    is_active = 0,
+                    updated_at = ?
+                WHERE folder_id IN (
+                    SELECT id
+                    FROM ${TABLES.sourceFolders}
+                    WHERE source_mid = ?
+                )
+                AND COALESCE(last_seen_import_run_id, '') != ?
+                AND is_active = 1
+                ${excludeFailedFoldersSql}
+            `).run(finishedAt, mid, runId, ...failedFolderIds)
+        }
+
+        if (softInactivateWatchLater) {
+            database.prepare(`
+                UPDATE ${TABLES.sourceWatchLaterItems}
+                SET
+                    is_active = 0,
+                    updated_at = $updatedAt
+                WHERE COALESCE(last_seen_import_run_id, '') != $runId
+                  AND is_active = 1
+            `).run({
+                updatedAt: finishedAt,
+                runId
+            })
+        }
 
         database.prepare(`
             UPDATE ${TABLES.importRuns}
@@ -287,6 +387,7 @@ function finalizeCompletedRun({ runId, mid, folderCount, itemCount, warnings, fa
                 finished_at = $finishedAt,
                 folder_count = $folderCount,
                 item_count = $itemCount,
+                watch_later_item_count = $watchLaterItemCount,
                 error_message = $errorMessage
             WHERE id = $runId
         `).run({
@@ -294,16 +395,13 @@ function finalizeCompletedRun({ runId, mid, folderCount, itemCount, warnings, fa
             finishedAt,
             folderCount,
             itemCount,
+            watchLaterItemCount,
             errorMessage: warnings.length > 0 ? serializeImportWarning(warnings) : null,
             runId
         })
     })
 }
 
-/**
- * 失败收口：只更新 run 自身状态与错误信息，
- * 不回滚本轮已落库的快照，避免把上一份可用数据也一起弄丢。
- */
 function finalizeFailedRun({ runId, error }) {
     getDatabase().prepare(`
         UPDATE ${TABLES.importRuns}
@@ -320,9 +418,6 @@ function finalizeFailedRun({ runId, error }) {
     })
 }
 
-/**
- * 收藏夹快照写入：按确定性 id 幂等 upsert，重复导入只刷新最新字段与 raw_json。
- */
 function upsertFolder(database, { runId, mid, folder, sortOrder }) {
     const folderId = createFolderId(folder.id)
     const now = nowIsoString()
@@ -382,10 +477,6 @@ function upsertFolder(database, { runId, mid, folder, sortOrder }) {
     })
 }
 
-/**
- * 视频主记录写入：同一视频跨收藏夹只保留一条，靠 id 冲突合并，
- * 这正是「收藏项唯一性」约束的落地点。
- */
 function upsertItem(database, media) {
     const itemId = createItemId(media.id)
     const now = nowIsoString()
@@ -449,11 +540,6 @@ function upsertItem(database, media) {
     })
 }
 
-/**
- * 归属关系写入（收藏夹 × 收藏项）。
- * 重复导入时刷新 last_seen_import_run_id 并把 is_active 复位为 1：
- * 这个「本轮是否见过」的标记是 finalizeCompletedRun 做软失效的唯一依据。
- */
 function upsertFolderItem(database, { runId, folder, media }) {
     const folderId = createFolderId(folder.id)
     const itemId = createItemId(media.id)
@@ -504,11 +590,54 @@ function upsertFolderItem(database, { runId, folder, media }) {
 }
 
 /**
- * 并发保护：先查进程内运行表，再回落到数据库里的 running 记录，
- * 以覆盖服务重启后内存丢失、但库里仍残留 running 的情况。
+ * 稍后再看归属：item_id 唯一。重复导入刷新 last_seen 并把 is_active 复位。
  */
+function upsertWatchLaterItem(database, { runId, media }) {
+    const itemId = createItemId(media.id)
+    const relationId = createWatchLaterItemId(itemId)
+    const now = nowIsoString()
+
+    database.prepare(`
+        INSERT INTO ${TABLES.sourceWatchLaterItems} (
+            id,
+            item_id,
+            first_seen_import_run_id,
+            last_seen_import_run_id,
+            source_added_at,
+            is_active,
+            raw_json,
+            created_at,
+            updated_at
+        ) VALUES (
+            $id,
+            $itemId,
+            $firstSeenImportRunId,
+            $lastSeenImportRunId,
+            $sourceAddedAt,
+            1,
+            $rawJson,
+            $createdAt,
+            $updatedAt
+        )
+        ON CONFLICT(item_id) DO UPDATE SET
+            last_seen_import_run_id = excluded.last_seen_import_run_id,
+            source_added_at = excluded.source_added_at,
+            is_active = 1,
+            raw_json = excluded.raw_json,
+            updated_at = excluded.updated_at
+    `).run({
+        id: relationId,
+        itemId,
+        firstSeenImportRunId: runId,
+        lastSeenImportRunId: runId,
+        sourceAddedAt: toIsoFromUnixSeconds(media.add_at ?? media.fav_time),
+        rawJson: JSON.stringify(media),
+        createdAt: now,
+        updatedAt: now
+    })
+}
+
 function findRunningImportByMid(mid) {
-    // 因为 一轮导入要跑几十秒到几分钟 ，而这个窗口期里用户完全可能再点一次。
     for (const run of runningImports.values()) {
         if (run.mid === mid) {
             return run
@@ -534,15 +663,9 @@ function findRunningImportByMid(mid) {
     return { runId: row.id, mid }
 }
 
-/**
- * DB 行 → 领域视图模型。
- * 只在 completed 且存的是 warning 结构时才回填 warning 字段，
- * 从而把「部分失败」和「整轮失败」在读取侧彻底分开。
- */
 function mapImportRunRow(row) {
     const serializedMessage = parseStoredImportMessage(row.error_message)
-
-    return createImportRunDetail({
+    const detail = createImportRunDetail({
         runId: row.id,
         sourceMid: row.source_mid,
         status: row.status,
@@ -550,6 +673,7 @@ function mapImportRunRow(row) {
         finishedAt: row.finished_at,
         folderCount: row.folder_count,
         itemCount: row.item_count,
+        watchLaterItemCount: row.watch_later_item_count == null ? null : Number(row.watch_later_item_count),
         warning: row.status === IMPORT_STATUS.completed && serializedMessage?.kind === 'warning'
             ? createImportWarning({
                 failedFolderCount: serializedMessage.failedFolderCount,
@@ -557,17 +681,19 @@ function mapImportRunRow(row) {
             })
             : null
     })
+
+    if (row.status === IMPORT_STATUS.failed) {
+        detail.errorMessage = serializedMessage?.message || row.error_message || null
+    }
+
+    return detail
 }
 
-/**
- * 一期 import_runs 只有 error_message 一列，warning 也要序列化进这里，
- * 所以用 kind 字段区分 warning / error，读取侧才能正确还原。
- */
 function serializeImportWarning(warnings) {
     return JSON.stringify({
         kind: 'warning',
         failedFolderCount: warnings.length,
-        message: `${warnings.length} 个收藏夹导入失败：${warnings.map((warning) => `${warning.title}（${warning.message}）`).join('；')}`
+        message: `${warnings.length} 个来源导入失败：${warnings.map((warning) => `${warning.title}（${warning.message}）`).join('；')}`
     })
 }
 
@@ -597,10 +723,6 @@ function createRunId() {
     return `run_${timeChunk}_${crypto.randomUUID().slice(0, 6)}`
 }
 
-/**
- * 本地 id 一律由上游 id 确定性派生而非随机生成，
- * 这是 upsert 幂等、以及跨收藏夹去重能成立的前提，改动前需同步确认约束。
- */
 function createFolderId(sourceFolderId) {
     return `folder_${String(sourceFolderId)}`
 }
@@ -611,6 +733,10 @@ function createItemId(sourceVideoId) {
 
 function createFolderItemId(folderId, itemId) {
     return `folder_item_${folderId}_${itemId}`
+}
+
+function createWatchLaterItemId(itemId) {
+    return `watch_later_${itemId}`
 }
 
 function toIsoFromUnixSeconds(value) {

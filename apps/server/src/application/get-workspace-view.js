@@ -2,6 +2,7 @@ import { DEFAULT_BILI_MID } from '../config/env.js'
 import { getDatabase, migrateDatabase } from '../adapters/db/sqlite.js'
 import { TABLES } from '../adapters/db/schema.js'
 import { ITEM_DECISION_STATUS } from '../domain/item-decision.js'
+import { WATCH_LATER_STATUS } from '../domain/watch-later.js'
 import { formatDateTime } from './format-datetime.js'
 import {
     createEmptySuggestionSummary,
@@ -12,57 +13,116 @@ import {
 } from '../domain/workspace-view.js'
 
 /** 排序白名单：query 里的 sortBy 只允许映射到这几列，避免列名被直接拼进 SQL。 */
-const SORT_COLUMNS = {
+const FOLDER_SORT_COLUMNS = {
     fav_time: 'sfi.source_fav_time',
     publish_time: 'i.publish_time',
-    // 时长必须按数值列排，前端展示的 durationLabel 是 MM:SS 文本，排序结果会错
+    duration: 'i.duration_seconds',
+    title: 'i.title'
+}
+
+/** 稍后再看：收藏时间对应来源添加时间。 */
+const WATCH_LATER_SORT_COLUMNS = {
+    fav_time: 'swl.source_added_at',
+    publish_time: 'i.publish_time',
     duration: 'i.duration_seconds',
     title: 'i.title'
 }
 
 /**
  * 工作区右栏的唯一数据来源。
- * 一次收口容器信息、轻量统计、分页明细与筛选回显，让前端只学一个 response shape，
- * 而不是自己去 join 六张表。
+ * 一次收口容器信息、轻量统计、分页明细与筛选回显，让前端只学一个 response shape。
  * 边界：容器不存在时返回 null，由路由决定 404，这里不抛错。
  */
 export async function getWorkspaceView({ containerId, filters, mid = DEFAULT_BILI_MID } = {}) {
     migrateDatabase()
 
-    const containerRow = findContainerRow(containerId, mid)
+    if (containerId === WORKSPACE_CONTAINER_TYPES.watchLater) {
+        return buildWatchLaterView({ filters })
+    }
+
+    return buildFolderView({ containerId, filters, mid })
+}
+
+function buildFolderView({ containerId, filters, mid }) {
+    const containerRow = findFolderContainerRow(containerId, mid)
     if (!containerRow) {
         return null
     }
 
     const normalizedFilters = normalizeFilters(filters)
-    const total = countItems({ containerId, keyword: normalizedFilters.keyword })
-    const itemRows = listItemRows({ containerId, filters: normalizedFilters })
+    const total = countFolderItems({ containerId, keyword: normalizedFilters.keyword })
+    const itemRows = listFolderItemRows({ containerId, filters: normalizedFilters })
     const suggestionSummaries = listLatestSuggestionSummaries(itemRows.map((row) => row.id))
-    const container = mapContainerRow(containerRow)
+    const container = mapFolderContainerRow(containerRow)
 
     return createEmptyWorkspaceView({
         container,
-        stats: countContainerStats(containerId),
+        stats: countFolderContainerStats(containerId),
         filters: normalizedFilters,
         list: {
-            items: itemRows.map((row) => mapItemRow(row, { container, suggestionSummary: suggestionSummaries.get(row.id) })),
-            pagination: {
-                page: normalizedFilters.page,
-                pageSize: normalizedFilters.pageSize,
-                total,
-                totalPages: Math.ceil(total / normalizedFilters.pageSize),
-                hasNextPage: normalizedFilters.page * normalizedFilters.pageSize < total,
-                hasPreviousPage: normalizedFilters.page > 1
-            }
+            items: itemRows.map((row) => mapItemRow(row, {
+                container,
+                suggestionSummary: suggestionSummaries.get(row.id),
+                watchLater: null
+            })),
+            pagination: buildPagination(normalizedFilters, total)
         }
     })
 }
 
-/**
- * 容器本体 + 关键标记 + 说明完成态一次查完，
- * 三者决定右栏头部怎么渲染，所以不拆成多次查询。
- */
-function findContainerRow(containerId, mid) {
+function buildWatchLaterView({ filters }) {
+    const normalizedFilters = normalizeFilters(filters)
+    const total = countWatchLaterItems({ keyword: normalizedFilters.keyword })
+    const itemRows = listWatchLaterItemRows({ filters: normalizedFilters })
+    const suggestionSummaries = listLatestSuggestionSummaries(itemRows.map((row) => row.id))
+    const container = {
+        id: WORKSPACE_CONTAINER_TYPES.watchLater,
+        type: WORKSPACE_CONTAINER_TYPES.watchLater,
+        title: '稍后再看池',
+        sourceFolderId: null,
+        sourceFid: null,
+        isKeyFolder: false,
+        profileCompleted: false,
+        description: null
+    }
+
+    // 稍后再看头部只暴露待处理总量，不套收藏夹的确认 / 建议统计口径。
+    return createEmptyWorkspaceView({
+        container,
+        stats: {
+            totalItems: total,
+            pendingDecisionCount: total,
+            confirmedCount: 0,
+            suggestionCoverageCount: 0,
+            activeSourceCount: total
+        },
+        filters: normalizedFilters,
+        list: {
+            items: itemRows.map((row) => mapItemRow(row, {
+                container,
+                suggestionSummary: suggestionSummaries.get(row.id),
+                watchLater: {
+                    status: row.watch_later_status || WATCH_LATER_STATUS.pending,
+                    processedAt: formatDateTime(row.watch_later_processed_at)
+                }
+            })),
+            pagination: buildPagination(normalizedFilters, total)
+        }
+    })
+}
+
+function buildPagination(filters, total) {
+    return {
+        page: filters.page,
+        pageSize: filters.pageSize,
+        total,
+        totalPages: Math.ceil(total / filters.pageSize),
+        hasNextPage: filters.page * filters.pageSize < total,
+        hasPreviousPage: filters.page > 1
+    }
+}
+
+function findFolderContainerRow(containerId, mid) {
     return getDatabase().prepare(`
         SELECT
             f.id,
@@ -82,7 +142,7 @@ function findContainerRow(containerId, mid) {
     `).get({ containerId, sourceMid: mid })
 }
 
-function mapContainerRow(row) {
+function mapFolderContainerRow(row) {
     return {
         id: row.id,
         type: WORKSPACE_CONTAINER_TYPES.folder,
@@ -91,7 +151,6 @@ function mapContainerRow(row) {
         sourceFid: row.source_fid,
         isKeyFolder: Boolean(row.is_key_folder),
         profileCompleted: Boolean(row.completed_at),
-        // 只有关键收藏夹才允许写说明，所以没有说明时统一给 null，而不是给一份空对象
         description: row.purpose == null ? null : {
             includeTopics: row.include_topics || '',
             excludeTopics: row.exclude_topics || '',
@@ -101,11 +160,7 @@ function mapContainerRow(row) {
     }
 }
 
-/**
- * 容器级统计不受筛选条件影响：用户看的是这个收藏夹整体有多少待处理，
- * 而不是「当前这 20 条里有多少待处理」。
- */
-function countContainerStats(containerId) {
+function countFolderContainerStats(containerId) {
     const row = getDatabase().prepare(`
         SELECT
             COUNT(*) AS total_items,
@@ -131,13 +186,12 @@ function countContainerStats(containerId) {
         pendingDecisionCount: toCount(row.pending_count),
         confirmedCount: toCount(row.confirmed_count),
         suggestionCoverageCount: toCount(row.suggestion_coverage_count),
-        // 统计口径只覆盖 is_active = 1，所以这里与 totalItems 恒等，但语义不同，保留独立字段
         activeSourceCount: totalItems
     }
 }
 
-function countItems({ containerId, keyword }) {
-    const scope = buildItemScope({ keyword })
+function countFolderItems({ containerId, keyword }) {
+    const scope = buildFolderItemScope({ keyword })
     const row = getDatabase().prepare(`
         SELECT COUNT(*) AS total
         FROM ${TABLES.sourceFolderItems} AS sfi
@@ -148,13 +202,9 @@ function countItems({ containerId, keyword }) {
     return toCount(row.total)
 }
 
-/**
- * 明细行把 decision / sync / chosenFolderTitle 一并 join 出来，
- * 但建议摘要需要按分组聚合，交给单独查询处理，避免这条 SQL 变成嵌套子查询堆。
- */
-function listItemRows({ containerId, filters }) {
-    const scope = buildItemScope({ keyword: filters.keyword })
-    const sortColumn = SORT_COLUMNS[filters.sortBy]
+function listFolderItemRows({ containerId, filters }) {
+    const scope = buildFolderItemScope({ keyword: filters.keyword })
+    const sortColumn = FOLDER_SORT_COLUMNS[filters.sortBy]
     const sortDirection = filters.sortOrder === 'asc' ? 'ASC' : 'DESC'
     const offset = (filters.page - 1) * filters.pageSize
 
@@ -176,7 +226,9 @@ function listItemRows({ containerId, filters }) {
             d.updated_at AS decision_updated_at,
             ss.status AS sync_status,
             ss.target_folder_id AS sync_target_folder_id,
-            ss.last_attempted_at AS sync_last_attempted_at
+            ss.last_attempted_at AS sync_last_attempted_at,
+            NULL AS watch_later_status,
+            NULL AS watch_later_processed_at
         FROM ${TABLES.sourceFolderItems} AS sfi
         JOIN ${TABLES.sourceItems} AS i ON i.id = sfi.item_id
         LEFT JOIN ${TABLES.itemDecisions} AS d ON d.item_id = i.id
@@ -193,11 +245,7 @@ function listItemRows({ containerId, filters }) {
     })
 }
 
-/**
- * 关键词只在标题和 UP 主上匹配，且计数与取数共用同一段 WHERE，
- * 否则会出现「总数对不上当前筛选」的经典分页 bug。
- */
-function buildItemScope({ keyword }) {
+function buildFolderItemScope({ keyword }) {
     if (!keyword) {
         return { where: 'WHERE sfi.folder_id = $containerId AND sfi.is_active = 1', params: {} }
     }
@@ -209,9 +257,86 @@ function buildItemScope({ keyword }) {
 }
 
 /**
- * 列表页只要「最新一组建议」的摘要，所以先按 item 取最新 suggestion_group_id，
- * 再只捞这些分组的候选，避免把历史分组也灌给表格。
+ * 待处理稍后再看：来源仍 active，且本地未转存 / 未搁置。
  */
+function buildWatchLaterPendingScope({ keyword }) {
+    const base = `
+        WHERE swl.is_active = 1
+          AND (wls.status IS NULL OR wls.status = $pendingStatus)
+    `
+
+    if (!keyword) {
+        return {
+            where: base,
+            params: { pendingStatus: WATCH_LATER_STATUS.pending }
+        }
+    }
+
+    return {
+        where: `${base} AND (i.title LIKE $keyword OR i.upper_name LIKE $keyword)`,
+        params: {
+            pendingStatus: WATCH_LATER_STATUS.pending,
+            keyword: `%${keyword}%`
+        }
+    }
+}
+
+function countWatchLaterItems({ keyword }) {
+    const scope = buildWatchLaterPendingScope({ keyword })
+    const row = getDatabase().prepare(`
+        SELECT COUNT(*) AS total
+        FROM ${TABLES.sourceWatchLaterItems} AS swl
+        JOIN ${TABLES.sourceItems} AS i ON i.id = swl.item_id
+        LEFT JOIN ${TABLES.watchLaterState} AS wls ON wls.item_id = swl.item_id
+        ${scope.where}
+    `).get(scope.params)
+
+    return toCount(row.total)
+}
+
+function listWatchLaterItemRows({ filters }) {
+    const scope = buildWatchLaterPendingScope({ keyword: filters.keyword })
+    const sortColumn = WATCH_LATER_SORT_COLUMNS[filters.sortBy]
+    const sortDirection = filters.sortOrder === 'asc' ? 'ASC' : 'DESC'
+    const offset = (filters.page - 1) * filters.pageSize
+
+    return getDatabase().prepare(`
+        SELECT
+            i.id,
+            i.source_video_id,
+            i.source_bvid,
+            i.title,
+            i.intro,
+            i.duration_seconds,
+            i.publish_time,
+            i.upper_name,
+            i.upper_mid,
+            swl.source_added_at AS source_fav_time,
+            d.status AS decision_status,
+            d.chosen_folder_id,
+            cf.title AS chosen_folder_title,
+            d.updated_at AS decision_updated_at,
+            ss.status AS sync_status,
+            ss.target_folder_id AS sync_target_folder_id,
+            ss.last_attempted_at AS sync_last_attempted_at,
+            COALESCE(wls.status, $pendingStatus) AS watch_later_status,
+            wls.processed_at AS watch_later_processed_at
+        FROM ${TABLES.sourceWatchLaterItems} AS swl
+        JOIN ${TABLES.sourceItems} AS i ON i.id = swl.item_id
+        LEFT JOIN ${TABLES.watchLaterState} AS wls ON wls.item_id = swl.item_id
+        LEFT JOIN ${TABLES.itemDecisions} AS d ON d.item_id = i.id
+        LEFT JOIN ${TABLES.sourceFolders} AS cf ON cf.id = d.chosen_folder_id
+        LEFT JOIN ${TABLES.itemSyncStatus} AS ss ON ss.item_id = i.id
+        ${scope.where}
+        ORDER BY ${sortColumn} ${sortDirection}, swl.rowid DESC
+        LIMIT $pageSize OFFSET $offset
+    `).all({
+        ...scope.params,
+        pageSize: filters.pageSize,
+        offset
+    })
+}
+
 function listLatestSuggestionSummaries(itemIds) {
     if (itemIds.length === 0) {
         return new Map()
@@ -280,7 +405,7 @@ function listLatestSuggestionSummaries(itemIds) {
     }))
 }
 
-function mapItemRow(row, { container, suggestionSummary }) {
+function mapItemRow(row, { container, suggestionSummary, watchLater }) {
     return createWorkspaceItemRow({
         id: row.id,
         sourceVideoId: row.source_video_id,
@@ -306,26 +431,27 @@ function mapItemRow(row, { container, suggestionSummary }) {
             chosenFolderTitle: row.chosen_folder_title,
             updatedAt: formatDateTime(row.decision_updated_at)
         },
-        // 没有建议记录时给稳定的空摘要，前端不必区分 null 和空对象
         suggestionSummary: suggestionSummary || createEmptySuggestionSummary(),
         sync: {
             status: row.sync_status || 'not_synced',
             targetFolderId: row.sync_target_folder_id,
             lastAttemptedAt: formatDateTime(row.sync_last_attempted_at)
+        },
+        watchLater: watchLater || {
+            status: null,
+            processedAt: null
         }
     })
 }
 
-/**
- * query 全是字符串，这里统一收敛成契约里的类型，
- * 非法值一律回落到默认筛选条件，避免脏参数直接进 SQL 的排序列与 LIMIT。
- */
 function normalizeFilters(filters = {}) {
+    const sortColumns = FOLDER_SORT_COLUMNS
+
     return {
         page: parsePositiveInteger(filters.page, DEFAULT_WORKSPACE_FILTERS.page),
         pageSize: parsePositiveInteger(filters.pageSize, DEFAULT_WORKSPACE_FILTERS.pageSize),
         keyword: typeof filters.keyword === 'string' ? filters.keyword.trim() : '',
-        sortBy: SORT_COLUMNS[filters.sortBy] ? filters.sortBy : DEFAULT_WORKSPACE_FILTERS.sortBy,
+        sortBy: sortColumns[filters.sortBy] ? filters.sortBy : DEFAULT_WORKSPACE_FILTERS.sortBy,
         sortOrder: filters.sortOrder === 'asc' ? 'asc' : DEFAULT_WORKSPACE_FILTERS.sortOrder
     }
 }
@@ -349,7 +475,6 @@ function parseKeywords(rawJson) {
     }
 }
 
-/** 表格列直接展示，所以时长在这里就格式化好，前端不必再写一遍补零逻辑。 */
 function formatDurationLabel(seconds) {
     const totalSeconds = toCount(seconds)
     const hours = Math.floor(totalSeconds / 3600)

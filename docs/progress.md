@@ -3,7 +3,7 @@
 > 这份文档只回答一个问题：**现在做到哪了**。
 > 计划与边界看 [project-plan.md](file:///Users/dateng/pl-dashboard-2610/docs/project-plan.md)。
 > 来源同步与整理边界看 [source-sync-and-organization-boundary.md](file:///Users/dateng/pl-dashboard-2610/docs/source-sync-and-organization-boundary.md)，写回与双向同步看 [two-way-sync-design.md](file:///Users/dateng/pl-dashboard-2610/docs/two-way-sync-design.md)。
-> 最后更新：2026-11-20
+> 最后更新：2026-11-26
 
 ## 0. 怎么用
 
@@ -18,10 +18,10 @@
 | ------ | -------------------------- | -------------------------------------------------------------------------- |
 | 前置   | 版本控制基线、凭据清理     | 完成                                                                       |
 | 迭代 1 | 前后端分家底座与初始化流程 | 部分（后端链路已闭环，前端初始化流程与工作区骨架已就绪）                   |
-| 迭代 2 | 工作区主链路与稍后再看池   | 进行中（2.1–2.5 / 2.7 / 2.8 完成；2.6 稍后再看转存未开始） |
+| 迭代 2 | 工作区主链路与稍后再看池   | 完成（2.1–2.8；2.6 含导入 / 读路径 / 本地 transfer，不做 defer） |
 | 迭代 3 | 归位建议闭环与稳定性打磨   | 未开始                                                                     |
 
-**当前节点：迭代 2 进行中。** 工作区已能对单条收藏项走完本地整理：编辑关键收藏夹词表 → 生成归位建议 → 确认 / 暂不处理并回显统计。下一步是 2.6 稍后再看池接入，或进入迭代 3 打磨建议质量。
+**当前节点：迭代 2 已收口。** 工作区可整理普通收藏夹，也可导入并处理稍后再看（本地转存）。下一步进入迭代 3：建议质量与空态 / 异常打磨。
 
 ## 2. 前置：版本控制基线
 
@@ -90,8 +90,8 @@
 | 2.2 | 右侧收藏项表格（含 `intro` 两行截断）                  | —    | 完成   | 完成   |
 | 2.3 | 容器级轻量统计                                         | —    | 完成   | 完成   |
 | 2.4 | `POST /api/items/:itemId/suggestions` 按需生成建议     | 已定 | 完成   | 完成   |
-| 2.5 | `PUT /api/items/:itemId/decision/*` 确认 / 暂不处理    | 已定 | 完成   | 完成   |
-| 2.6 | `PUT /api/watch-later/:itemId/*` 单条转存              | 已定 | 未开始 | 未开始 |
+| 2.5 | `PUT /api/items/:itemId/decision/confirm` 确认目标收藏夹 | 已定 | 完成   | 完成   |
+| 2.6 | 稍后再看：`scope=all` 导入 + 读路径 + `PUT .../transfer`（不做 defer） | 已定 | 完成   | 完成   |
 | 2.7 | 收藏项表格服务端排序（时长 / 发布时间 / 收藏时间）     | 已定 | 完成   | 完成   |
 | 2.8 | 左栏收藏夹搜索（纯前端标题过滤）                       | —    | —      | 完成   |
 
@@ -133,6 +133,7 @@
 - **左栏搜索口径**：纯前端标题过滤（大小写不敏感），不给 `GET /api/workspace/sidebar` 加 query 参数，因此与 [workspace-sidebar-contract.md](file:///Users/dateng/pl-dashboard-2610/docs/workspace-sidebar-contract.md) §2「左栏不承担搜索」不冲突；搜索时隐藏过滤后为空的分区，全空则显示空态；被过滤掉的当前选中项不自动切换
 - **词表编辑口径**：匹配只用 `includeTopics`，排除用 `excludeTopics`。`keywords` 已从模型和表结构删除。
 - **整理闭环口径**：`POST .../suggestions` 写建议，`PUT .../decision/confirm` 写确认。没有暂不处理。
+- **稍后再看口径**：导入默认 `scope=all`（收藏夹 + toview）；左栏 / 右栏只展示 pending；`PUT .../transfer` 只写 `watch_later_state`，不写回 B 站、不写 `source_folder_items`；本期不做 `defer`。
 - **前端工程形态**：pnpm workspace（`apps/*`），根目录统一 `pnpm install` 与 lockfile；`apps/web` 用 Vite + React 19 + antd 6 + TypeScript（strict），开发期 `/api` 由 Vite proxy 透传到 `localhost:3001`，前端一律写相对路径以避开 CORS
 - **工作区选中态口径**：默认选中用 `pickedContainerId ?? sidebar.defaultContainerId` 在渲染期收口，不用 `useEffect` 回写默认值——避免用户已点选后被 effect 覆盖的竞态；1.16 右栏只渲染容器头部与占位，不提前请求 `container view`
 - **冷启动判定口径**：直接复用 `GET /api/imports/latest`；`404` 视为从未导入过，其余状态都视为已有导入记录，不额外新增初始化状态接口；1.17 已按此把首页串成「导入 → 关键收藏夹 → 收藏夹说明 → 工作区」
